@@ -8,14 +8,14 @@
 
 struct Config {
     int ppm_limit = 1000;
-    const char *shelly_ip;    
+    char shelly_ip[40];
     char mdns_hostname[50] = "co2";
 };
 
 Config config;
 const char *configFilename = "/config.json";
 
-void loadConfiguration()
+void loadConfiguration(const char *filename, Config &config)
 {
     File configFile = SPIFFS.open(configFilename, "r");
     if (!configFile) {
@@ -32,14 +32,17 @@ void loadConfiguration()
         Serial.println(error.c_str());
     }
 
-    // Copy values from the JsonDocument to the Config
-    config.ppm_limit = json["ppm_limit"] | 1000;
-    config.shelly_ip = json["shelly_ip"] | "";
+    config.ppm_limit = json["ppm_limit"] | 4321;
+    strlcpy(
+        config.shelly_ip,
+        json["shelly_ip"] | "192.168.0.1",
+        sizeof(config.shelly_ip)
+    );
 
     configFile.close();
 }
 
-void saveConfiguration()
+void saveConfiguration(const char *filename, const Config &config)
 {
     Serial.println("Saving config.");
 
@@ -52,8 +55,8 @@ void saveConfiguration()
     const size_t capacity = JSON_OBJECT_SIZE(2);
     DynamicJsonDocument json(capacity);
 
+    json["shelly_ip"] = config.shelly_ip;
     json["ppm_limit"] = config.ppm_limit;
-    //json["shelly_ip"] = config.shelly_ip;
 
     if (serializeJson(json, configFile) == 0) {
         Serial.println("Failed to write config to file.");
@@ -141,10 +144,9 @@ void handleIndexPage()
   String page = FPSTR(INDEX_HTML);
 
   if (!httpServer.arg("ppm_limit").isEmpty()) {
-      config.ppm_limit = httpServer.arg("ppm_limit").toInt();
-      //httpServer.arg("shelly_ip").toCharArray(config.shelly_ip, sizeof(config.shelly_ip));
-
-      saveConfiguration();
+    config.ppm_limit = httpServer.arg("ppm_limit").toInt();
+    httpServer.arg("shelly_ip").toCharArray(config.shelly_ip, sizeof(config.shelly_ip));
+    saveConfiguration(configFilename, config);
   }
 
   page.replace("{PPM_LIMIT}", String(config.ppm_limit));
@@ -160,7 +162,7 @@ void switchOn()
     WiFiClient wifiClient;
     HTTPClient httpClient;
 
-    httpClient.begin(wifiClient, "http://192.168.0.138/relay/0?turn=on");
+    httpClient.begin(wifiClient, sprintf("http://%s/relay/0?turn=on", config.shelly_ip));
     int responseCode = httpClient.GET();
 
     if (responseCode < 0) {
@@ -176,7 +178,7 @@ void switchOff()
     WiFiClient wifiClient;
     HTTPClient httpClient;
 
-    httpClient.begin(wifiClient, "http://192.168.0.138/relay/0?turn=off");
+    httpClient.begin(wifiClient, sprintf("http://%s/relay/0?turn=off", config.shelly_ip));
     int responseCode = httpClient.GET();
 
     if (responseCode < 0) {
@@ -249,7 +251,7 @@ void setup() {
     if (!SPIFFS.begin()) {
         Serial.println("Error mounting Filesystem");
     }
-    loadConfiguration();
+    loadConfiguration(configFilename, config);
 
     setupWifiManager();
     setupHttpServer();
