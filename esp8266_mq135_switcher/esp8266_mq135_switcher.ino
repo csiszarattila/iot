@@ -66,7 +66,6 @@ void saveConfiguration(const char *filename, const Config &config)
 }
 
 /*****************************WIFI***********************************************/
-#include <ESP8266WebServer.h>
 #include <DNSServer.h>
 #include <WiFiManager.h>
 #include <WiFiClient.h>
@@ -101,23 +100,23 @@ const char INDEX_HTML[] PROGMEM = R"=="==(
 <head>
     <meta charset="utf-8">
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css" integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh" crossorigin="anonymous">
-    <script src="https://code.jquery.com/jquery-3.4.1.slim.min.js" integrity="sha384-J6qa4849blE2+poT4WnyKhv5vZF5SrPo0iEjwBvKU7imGFAV0wwj1yYfoRSJoZ+n" crossorigin="anonymous"></script>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/5.0.0-alpha1/css/bootstrap.min.css" integrity="sha384-r4NyP46KrjDleawBgD5tp8Y7UzmLA05oM1iAEQ17CSuDqnUK2+k9luXQOfXJCJ4I" crossorigin="anonymous">
     <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js" integrity="sha384-Q6E9RHvbIyZFJoft+2mJbHaEWldlvI9IOYy5n3zV9zzTtmI3UksdQRVvoxMfooAo" crossorigin="anonymous"></script>
-    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js" integrity="sha384-wfSDF2E50Y2D1uUdj0O3uMBJnjuUD4Ih7YwaYd1iqfktj0Uod8GCExl3Og8ifwB6" crossorigin="anonymous"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/5.0.0-alpha1/js/bootstrap.min.js" integrity="sha384-oesi62hOLfzrys4LxRF63OJCXdXDipiYWBnvTl9Y9/TRlw5xlKIEHpNyvvDShgf/" crossorigin="anonymous"></script>
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <title>CO2 Szenzor</title>
 </head>
 <body>
 <div class="container">
     <h1><i class="material-icons md-48">settings</i></span>CO2 Szenzor</h1>
-    <form action="" method="GET">
+    <form action="/config" method="POST">
         <div class="form-group">
             <label>Shelly ip:</label>
-            <input type="text" class="form-control" name="shelly_ip" value="{SHELLY_IP}">
+            <input type="text" class="form-control" name="shelly_ip" value="%SHELLY_IP%">
         </div>
         <div class="form-group">
             <label>Határérték (ppm):</label>
-            <input type="text" class="form-control" name="ppm_limit" value="{PPM_LIMIT}">
+            <input type="text" class="form-control" name="ppm_limit" value="%PPM_LIMIT%">
         </div>
         <button type="submit" class="btn btn-primary">Mentés</button>
     </form>
@@ -126,68 +125,81 @@ const char INDEX_HTML[] PROGMEM = R"=="==(
 </html>
 )=="==";
 
-ESP8266WebServer httpServer(80);
+#include <ESP8266WiFi.h>
+// https://github.com/me-no-dev/ESPAsyncWebServer/issues/418#issuecomment-667976368
+#define WEBSERVER_H 1
+#include <ESPAsyncTCP.h>
+#include <ESPAsyncWebServer.h>
+
+AsyncWebServer httpServer(80);
+
+String processor(const String& var)
+{
+    if (var == "SHELLY_IP") {
+        return config.shelly_ip;
+    }
+    if (var == "PPM_LIMIT") {
+        return String(config.ppm_limit);
+    }
+    return String();
+}
 
 void setupHttpServer()
 {
-  httpServer.onNotFound(handleNotFound);
-  httpServer.on("/", handleIndexPage);
-  httpServer.begin();
-}
+    httpServer.onNotFound([](AsyncWebServerRequest *request)
+    {
+        request->send(404);
+    });
+      
+    httpServer.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
+        request->send_P(200, "text/html", INDEX_HTML, processor);
+    });
 
-void handleNotFound() {
-  httpServer.send(404, "text/plain", "Not found");
-}
+    httpServer.on("/config", HTTP_POST, [](AsyncWebServerRequest *request) {
+        config.ppm_limit = request->getParam("ppm_limit", true)->value().toInt();
+        request->getParam("shelly_ip", true)->value().toCharArray(config.shelly_ip, sizeof(config.shelly_ip));
 
-void handleIndexPage()
-{
-  String page = FPSTR(INDEX_HTML);
+        saveConfiguration(configFilename, config);
 
-  if (!httpServer.arg("ppm_limit").isEmpty()) {
-    config.ppm_limit = httpServer.arg("ppm_limit").toInt();
-    httpServer.arg("shelly_ip").toCharArray(config.shelly_ip, sizeof(config.shelly_ip));
-    saveConfiguration(configFilename, config);
-  }
+        request->redirect("/");
+    });
 
-  page.replace("{PPM_LIMIT}", String(config.ppm_limit));
-  page.replace("{SHELLY_IP}", config.shelly_ip);
-
-  httpServer.send(200, "text/html", page);
+    httpServer.begin();
 }
 
 /*****************************Shelly Switch**************************************/
 
-void switchOn()
-{
-    WiFiClient wifiClient;
-    HTTPClient httpClient;
+// void switchOn()
+// {
+//     WiFiClient wifiClient;
+//     HTTPClient httpClient;
 
-    httpClient.begin(wifiClient, sprintf("http://%s/relay/0?turn=on", config.shelly_ip));
-    int responseCode = httpClient.GET();
+//     httpClient.begin(wifiClient, sprintf("http://%s/relay/0?turn=on", config.shelly_ip));
+//     int responseCode = httpClient.GET();
 
-    if (responseCode < 0) {
-        Serial.print("Switch: Error code");
-        Serial.println(responseCode);
-    }
+//     if (responseCode < 0) {
+//         Serial.print("Switch: Error code");
+//         Serial.println(responseCode);
+//     }
 
-    httpClient.end();
-}
+//     httpClient.end();
+// }
 
-void switchOff()
-{
-    WiFiClient wifiClient;
-    HTTPClient httpClient;
+// void switchOff()
+// {
+//     WiFiClient wifiClient;
+//     HTTPClient httpClient;
 
-    httpClient.begin(wifiClient, sprintf("http://%s/relay/0?turn=off", config.shelly_ip));
-    int responseCode = httpClient.GET();
+//     httpClient.begin(wifiClient, sprintf("http://%s/relay/0?turn=off", config.shelly_ip));
+//     int responseCode = httpClient.GET();
 
-    if (responseCode < 0) {
-        Serial.print("Switch: Error code");
-        Serial.println(responseCode);
-    }
+//     if (responseCode < 0) {
+//         Serial.print("Switch: Error code");
+//         Serial.println(responseCode);
+//     }
 
-    httpClient.end();
-}
+//     httpClient.end();
+// }
 
 /*****************************MQ-135 Sensor************************************/
 #include <MQUnifiedsensor.h>
@@ -260,7 +272,6 @@ void setup() {
 }
 
 void loop() {
-    httpServer.handleClient();
     MDNS.update();
 
     //readMQSensor();
