@@ -1,0 +1,22 @@
+# Prepare environment to build
+
+
+
+# Install required libraries
+
+cd ~/Arduino/libraries
+
+Then
+
+git clone https://github.com/me-no-dev/ESPAsyncWebServer.git
+
+git clone https://github.com/me-no-dev/ESPAsyncTCP.git
+
+# Compile and Upload
+
+arduino-cli compile -b esp8266:esp8266:generic && arduino-cli upload -b esp8266:esp8266:generic -p /dev/ttyUSB0
+
+
+# Watch console
+
+ stty 115200 -F /dev/ttyUSB0 raw -echo | cat /dev/ttyUSB0

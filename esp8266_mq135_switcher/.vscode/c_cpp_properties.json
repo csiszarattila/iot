@@ -9,7 +9,8 @@
                 "/usr/bin/hardware/tools/**",
                 "/usr/bin/libraries/**",
                 "/home/csiszar/Arduino/hardware/tools/**",
-                "/home/csiszar/Arduino/libraries/**"
+                "/home/csiszar/Arduino/libraries/**",
+                "/home/csiszar/.arduino15/packages/esp8266/hardware/esp8266/2.7.4/**"
             ],
             "forcedInclude": [],
             "intelliSenseMode": "gcc-x64",
