@@ -2,6 +2,11 @@
 #include <ESP8266HTTPClient.h>
 #include <ESP8266mDNS.h>
 
+/*****************************REMOTEDEBUG****************************************/
+#include <RemoteDebug.h> //https://github.com/JoaoLopesF/RemoteDebug
+
+RemoteDebug Debug;
+
 /*****************************CONFIG*********************************************/
 #include <FS.h>
 #include <ArduinoJson.h>
@@ -19,7 +24,7 @@ void loadConfiguration(const char *filename, Config &config)
 {
     File configFile = SPIFFS.open(configFilename, "r");
     if (!configFile) {
-        Serial.println("Failed to open config file for reading");
+        debugE("Failed to open config file for reading");
         // return;
     }
 
@@ -28,8 +33,7 @@ void loadConfiguration(const char *filename, Config &config)
 
     DeserializationError error = deserializeJson(json, configFile);
     if (error) {
-        Serial.println("Failed to read file, using default configuration.");
-        Serial.println(error.c_str());
+        debugE("Failed to read file, using default configuration. Error: %s", error.c_str());
     }
 
     config.ppm_limit = json["ppm_limit"] | 4321;
@@ -44,11 +48,11 @@ void loadConfiguration(const char *filename, Config &config)
 
 void saveConfiguration(const char *filename, const Config &config)
 {
-    Serial.println("Saving config.");
+    debugV("Saving config...");
 
     File configFile = SPIFFS.open(configFilename, "w");
     if (!configFile) {
-        Serial.println("Failed to open config file for writing");
+        debugV("Failed to open config file for writing");
         return;
     }
 
@@ -59,11 +63,19 @@ void saveConfiguration(const char *filename, const Config &config)
     json["ppm_limit"] = config.ppm_limit;
 
     if (serializeJson(json, configFile) == 0) {
-        Serial.println("Failed to write config to file.");
+        debugE("Failed to write config to file.");
     }
     
     configFile.close();
 }
+
+/*****************************REMOTEDEBUG****************************************/
+void setupDebug()
+{
+    Debug.begin("co2");
+    Debug.showColors(true);
+    Debug.setSerialEnabled(true);
+};
 
 /*****************************WIFI***********************************************/
 #include <DNSServer.h>
@@ -76,18 +88,14 @@ void setupWifiManager()
 {
     WiFi.hostname(config.mdns_hostname);
     wifiManager.autoConnect(config.mdns_hostname);
-    Serial.println("");
-    Serial.println("WiFi connected.");
-    Serial.print("IP address: ");
-    Serial.println(WiFi.localIP());
+    debugV("WiFi connected. IP address: %s", WiFi.localIP().toString().c_str());
 }
 
 void setupMDNS()
 {
     if (!MDNS.begin(config.mdns_hostname)) {
-        Serial.println("MDNS: start failed");
+        debugE("MDNS: start failed");
     } else {
-        Serial.println("MDNS: start success");
         MDNS.addService("http", "tcp", 80);
     }
 }
@@ -263,6 +271,9 @@ void setup() {
     if (!SPIFFS.begin()) {
         Serial.println("Error mounting Filesystem");
     }
+
+    setupDebug();
+
     loadConfiguration(configFilename, config);
 
     setupWifiManager();
@@ -273,6 +284,8 @@ void setup() {
 
 void loop() {
     MDNS.update();
+
+    Debug.handle();
 
     //readMQSensor();
 }

@@ -4,6 +4,12 @@
 
 # Install required libraries
 
+## Throught Arduino cli
+
+arduino-cli lib install RemoteDebug
+
+## Some libraries require manual install
+
 cd ~/Arduino/libraries
 
 Then
