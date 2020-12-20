@@ -2,7 +2,6 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css" integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh" crossorigin="anonymous">
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/5.0.0-alpha1/css/bootstrap.min.css" integrity="sha384-r4NyP46KrjDleawBgD5tp8Y7UzmLA05oM1iAEQ17CSuDqnUK2+k9luXQOfXJCJ4I" crossorigin="anonymous">
     <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js" integrity="sha384-Q6E9RHvbIyZFJoft+2mJbHaEWldlvI9IOYy5n3zV9zzTtmI3UksdQRVvoxMfooAo" crossorigin="anonymous"></script>
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/5.0.0-alpha1/js/bootstrap.min.js" integrity="sha384-oesi62hOLfzrys4LxRF63OJCXdXDipiYWBnvTl9Y9/TRlw5xlKIEHpNyvvDShgf/" crossorigin="anonymous"></script>
@@ -11,29 +10,31 @@
 </head>
 <body>
 <div class="container">
-    <h1><i class="material-icons md-48">settings</i></span>CO2 Szenzor</h1>
-    <form action="" method="GET">
-        <div class="mb-3">
-            <label for="ppm_limit" class="form-label">Bekapcsolási Határérték (ppm):</label>
-            <input type="range" class="form-range" min="0" max="5000" step="10" id="ppm_limit" name="ppm_limit" value="{PPM_LIMIT}">
+    <h3><i class="material-icons md-48">sensors</i></span>Kapcsoló</h1>
+    <form action="/switch/state" method="POST">
+        <div class="form-check form-switch mb-3">
+            <input class="form-check-input" type="checkbox" id="switch_on" name="switch_on" value="1" %SWITCH_ON% onchange="this.form.submit()">
+            <label class="form-check-label" for="switch_on">Bekapcsolva</label>
         </div>
-        <div class="row">
-            <div class="col-sm-3">
-                <label class="form-label">Shelly kapcsoló állapota:</label>
-            </div>
-            <div class="col">
-                <div class="btn-group">
-                    <input type="radio" class="btn-check" name="switch-state" id="success-outlined" autocomplete="off" checked>
-                    <label class="btn btn-outline-success" for="success-outlined">BE</label>
-                  
-                    <input type="radio" class="btn-check" name="switch-state" id="danger-outlined" autocomplete="off">
-                    <label class="btn btn-outline-danger" for="danger-outlined">KI</label>
-                </div>
-            </div>
+    </form>
+    <h3><i class="material-icons md-48">sensors</i></span>CO<sub>2</sub> szenzor</h1>
+    <div>
+        <p>Jelenlegi érték (ppm): <strong>%PPM%</strong></p>
+    </div>
+    <h3 class="mt-3"><i class="material-icons md-48">settings</i></span>Beállítások</h1>
+    <form action="/config" method="POST">
+        <div class="form-check form-switch mb-3">
+            <input class="form-check-input" type="checkbox" id="flexSwitchCheckDefault" %ENABLED_ON%>
+            <label class="form-check-label" for="flexSwitchCheckDefault">Automatikus ki/bekapcsolás</label>
+        </div>
+        <div class="mb-3">
+            <label for="ppm_limit" class="form-label">Bekapcsolási határ (ppm):</label>
+            <strong><output name="ppm_limit_value">%PPM_LIMIT%</output></strong>
+            <input type="range" class="form-range" value="1500" min="0" max="5000" step="10" id="ppm_limit" name="ppm_limit" value="%PPM_LIMIT%" oninput="this.form.ppm_limit_value.value=this.value">
         </div>
         <div class="mb-3">
             <label for="shelly_ip" class="form-label">Shelly kapcsoló ip címe:</label>
-            <input type="email" class="form-control" value="{SHELLY_IP}">
+            <input type="text" class="form-control" name="shelly_ip" value="%SHELLY_IP%">
         </div>
         <button type="submit" class="btn btn-primary">Beállítások mentése</button>
     </form>

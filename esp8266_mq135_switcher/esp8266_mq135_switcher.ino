@@ -100,6 +100,106 @@ void setupMDNS()
     }
 }
 
+/*****************************Shelly Switch**************************************/
+class Switch
+{
+    public:
+        enum RelayState {
+            OFF,
+            ON,
+        };
+
+        void refreshState()
+        {
+            HTTPClient httpClient;
+
+            // https://arduinojson.org/v6/how-to/use-arduinojson-with-httpclient/
+            // Unfortunately, by using the underlying Stream, we bypass the code that 
+            // handles chunked transfer encoding, so we must switch to HTTP version 1.0.
+            httpClient.useHTTP10(true);
+            httpClient.begin(config.shelly_ip, 80, "/relay/0/");
+            int responseCode = httpClient.GET();
+            
+            if (responseCode < 0) {
+                debugE("Get Switch State Error: %d", responseCode);
+            }
+
+            DynamicJsonDocument jsonBuffer(220);
+            
+            DeserializationError error = deserializeJson(jsonBuffer, httpClient.getStream());
+            if (error) {
+                debugE("Failed to get Shelly Switch state, json deserialize error: %s", error.c_str());
+            }
+
+            bool _isOn = jsonBuffer["ison"] | false;
+
+            debugD("Switch RefreshState result: %d", _isOn);
+
+            state = _isOn ? ON : OFF;
+
+            httpClient.end();
+        }
+
+        void setState(RelayState newState) {
+            HTTPClient httpClient;
+
+            String path("/relay/0?turn=");
+            path.concat(newState == ON ? "on" : "off");
+
+            httpClient.begin(config.shelly_ip, 80, path);
+            int responseCode = httpClient.GET();
+
+            if (responseCode < 0) {
+                debugE("Switch setState Error: %d", responseCode);
+            }
+
+            httpClient.end();
+
+            state = newState;
+        }
+
+        RelayState getState() {
+            return state;
+        }
+
+        void turnOn() {
+            setState(ON);
+        }
+
+        void turnOff() {
+            setState(OFF);
+        }
+
+        void toggle() {
+            state == ON ? turnOff() : turnOn();
+        }
+
+        // https://github.com/me-no-dev/ESPAsyncWebServer/issues/364
+        void triggerStateSwitch(RelayState state)
+        {
+            _changeStateNextTime = true;
+            _changeStateNextTimeTo = state;
+        }
+
+        void handleStateSwitch()
+        {
+            if (_changeStateNextTime) {
+                setState(_changeStateNextTimeTo);
+                _changeStateNextTime = false;
+            }
+        }
+
+    private:
+        RelayState state = OFF;
+
+        bool _changeStateNextTime = false;
+        RelayState _changeStateNextTimeTo = ON;
+
+        String ip;
+};
+
+Switch shelly;
+
 /*****************************HTTP SERVER****************************************/
 
 const char INDEX_HTML[] PROGMEM = R"=="==(
@@ -107,7 +207,6 @@ const char INDEX_HTML[] PROGMEM = R"=="==(
 <html>
 <head>
     <meta charset="utf-8">
-    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css" integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh" crossorigin="anonymous">
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/5.0.0-alpha1/css/bootstrap.min.css" integrity="sha384-r4NyP46KrjDleawBgD5tp8Y7UzmLA05oM1iAEQ17CSuDqnUK2+k9luXQOfXJCJ4I" crossorigin="anonymous">
     <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js" integrity="sha384-Q6E9RHvbIyZFJoft+2mJbHaEWldlvI9IOYy5n3zV9zzTtmI3UksdQRVvoxMfooAo" crossorigin="anonymous"></script>
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/5.0.0-alpha1/js/bootstrap.min.js" integrity="sha384-oesi62hOLfzrys4LxRF63OJCXdXDipiYWBnvTl9Y9/TRlw5xlKIEHpNyvvDShgf/" crossorigin="anonymous"></script>
@@ -116,17 +215,33 @@ const char INDEX_HTML[] PROGMEM = R"=="==(
 </head>
 <body>
 <div class="container">
-    <h1><i class="material-icons md-48">settings</i></span>CO2 Szenzor</h1>
+    <h3><i class="material-icons md-48">sensors</i></span>Kapcsoló</h1>
+    <form action="/switch/state" method="POST">
+        <div class="form-check form-switch mb-3">
+            <input class="form-check-input" type="checkbox" id="switch_on" name="switch_on" value="1" %SWITCH_ON% onchange="this.form.submit()">
+            <label class="form-check-label" for="switch_on">Bekapcsolva</label>
+        </div>
+    </form>
+    <h3><i class="material-icons md-48">sensors</i></span>CO<sub>2</sub> szenzor</h1>
+    <div>
+        <p>Jelenlegi érték (ppm): <strong>%PPM%</strong></p>
+    </div>
+    <h3 class="mt-3"><i class="material-icons md-48">settings</i></span>Beállítások</h1>
     <form action="/config" method="POST">
-        <div class="form-group">
-            <label>Shelly ip:</label>
+        <div class="form-check form-switch mb-3">
+            <input class="form-check-input" type="checkbox" id="flexSwitchCheckDefault" %ENABLED_ON%>
+            <label class="form-check-label" for="flexSwitchCheckDefault">Automatikus ki/bekapcsolás</label>
+        </div>
+        <div class="mb-3">
+            <label for="ppm_limit" class="form-label">Bekapcsolási határ (ppm):</label>
+            <strong><output name="ppm_limit_value">%PPM_LIMIT%</output></strong>
+            <input type="range" class="form-range" value="1500" min="0" max="5000" step="10" id="ppm_limit" name="ppm_limit" value="%PPM_LIMIT%" oninput="this.form.ppm_limit_value.value=this.value">
+        </div>
+        <div class="mb-3">
+            <label for="shelly_ip" class="form-label">Shelly kapcsoló ip címe:</label>
             <input type="text" class="form-control" name="shelly_ip" value="%SHELLY_IP%">
         </div>
-        <div class="form-group">
-            <label>Határérték (ppm):</label>
-            <input type="text" class="form-control" name="ppm_limit" value="%PPM_LIMIT%">
-        </div>
-        <button type="submit" class="btn btn-primary">Mentés</button>
+        <button type="submit" class="btn btn-primary">Beállítások mentése</button>
     </form>
 </div>
 </body>
@@ -148,6 +263,15 @@ String processor(const String& var)
     }
     if (var == "PPM_LIMIT") {
         return String(config.ppm_limit);
+    }
+    if (var == "SWITCH_ON") {
+        return String(shelly.getState() == Switch::ON ? "checked" : "");
+    }
+    if (var == "ENABLED_ON") {
+         return String(true ? "checked" : "");
+    }
+    if (var == "PPM") {
+        return String("AAAAA");
     }
     return String();
 }
@@ -172,42 +296,17 @@ void setupHttpServer()
         request->redirect("/");
     });
 
+    httpServer.on("/switch/state", HTTP_POST, [](AsyncWebServerRequest *request) {
+    
+        shelly.triggerStateSwitch(
+            request->hasParam("switch_on", true) ? Switch::ON : Switch::OFF
+        );
+
+        request->redirect("/");
+    });
+
     httpServer.begin();
 }
-
-/*****************************Shelly Switch**************************************/
-
-// void switchOn()
-// {
-//     WiFiClient wifiClient;
-//     HTTPClient httpClient;
-
-//     httpClient.begin(wifiClient, sprintf("http://%s/relay/0?turn=on", config.shelly_ip));
-//     int responseCode = httpClient.GET();
-
-//     if (responseCode < 0) {
-//         Serial.print("Switch: Error code");
-//         Serial.println(responseCode);
-//     }
-
-//     httpClient.end();
-// }
-
-// void switchOff()
-// {
-//     WiFiClient wifiClient;
-//     HTTPClient httpClient;
-
-//     httpClient.begin(wifiClient, sprintf("http://%s/relay/0?turn=off", config.shelly_ip));
-//     int responseCode = httpClient.GET();
-
-//     if (responseCode < 0) {
-//         Serial.print("Switch: Error code");
-//         Serial.println(responseCode);
-//     }
-
-//     httpClient.end();
-// }
 
 /*****************************MQ-135 Sensor************************************/
 #include <MQUnifiedsensor.h>
@@ -277,9 +376,13 @@ void setup() {
     loadConfiguration(configFilename, config);
 
     setupWifiManager();
+
     setupHttpServer();
     setupMDNS();
+    
     //setupMQSensor();
+
+    shelly.refreshState();
 }
 
 void loop() {
@@ -288,4 +391,6 @@ void loop() {
     Debug.handle();
 
     //readMQSensor();
+
+    shelly.handleStateSwitch();
 }
