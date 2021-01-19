@@ -1,6 +1,15 @@
 #include <ESP8266WiFi.h>
 #include <ESP8266HTTPClient.h>
 #include <ESP8266mDNS.h>
+#include <DNSServer.h>
+#include <WiFiManager.h>
+#include <WiFiClient.h>
+// https://github.com/me-no-dev/ESPAsyncWebServer/issues/418#issuecomment-667976368
+#define WEBSERVER_H 1
+#include <ESPAsyncTCP.h>
+#include <ESPAsyncWebServer.h>
+#include <FS.h>
+#include <ArduinoJson.h>
 
 /*****************************REMOTEDEBUG****************************************/
 #include <RemoteDebug.h> //https://github.com/JoaoLopesF/RemoteDebug
@@ -8,8 +17,6 @@
 RemoteDebug Debug;
 
 /*****************************CONFIG*********************************************/
-#include <FS.h>
-#include <ArduinoJson.h>
 
 struct Config {
     int ppm_limit = 1000;
@@ -69,19 +76,7 @@ void saveConfiguration(const char *filename, const Config &config)
     configFile.close();
 }
 
-/*****************************REMOTEDEBUG****************************************/
-void setupDebug()
-{
-    Debug.begin("co2");
-    Debug.showColors(true);
-    Debug.setSerialEnabled(true);
-};
-
 /*****************************WIFI***********************************************/
-#include <DNSServer.h>
-#include <WiFiManager.h>
-#include <WiFiClient.h>
-
 WiFiManager wifiManager;
 
 void setupWifiManager()
@@ -100,7 +95,22 @@ void setupMDNS()
     }
 }
 
-/*****************************Shelly Switch**************************************/
+/*****************************REMOTEDEBUG*************************************/
+void setupDebug()
+{
+    Debug.begin("co2");
+    Debug.showColors(true);
+    Debug.setSerialEnabled(true);
+}
+
+/*****************************Sensors*****************************************/
+struct Sensors {
+    int ppm = 0;
+};
+
+Sensors sensors;
+
+/*****************************Shelly Switch***********************************/
 class Switch
 {
     public:
@@ -122,6 +132,9 @@ class Switch
             
             if (responseCode < 0) {
                 debugE("Get Switch State Error: %d", responseCode);
+                notifyClientsWithError("shelly.notfound");
+                httpClient.end();
+                return;
             }
 
             DynamicJsonDocument jsonBuffer(220);
@@ -151,6 +164,7 @@ class Switch
 
             if (responseCode < 0) {
                 debugE("Switch setState Error: %d", responseCode);
+                notifyClientsWithError("shelly.setstate.failed");
             }
 
             httpClient.end();
@@ -200,6 +214,125 @@ class Switch
 
 Switch shelly;
 
+/*****************************WEBSOCKET SERVER****************************************/
+
+AsyncWebSocket webSocketServer("/ws");
+
+void handleWebSocketMessage(
+    AsyncWebSocketClient *client, 
+    void *arg,
+    uint8_t *data,
+    size_t len
+) {
+    AwsFrameInfo *info = (AwsFrameInfo*)arg;
+    if (info->final && info->index == 0 && info->len == len && info->opcode == WS_TEXT) {
+
+        debugV("WebSocket incoming message: %s", data);
+
+        DynamicJsonDocument payload(400);
+
+        DeserializationError error = deserializeJson(payload, data);
+        if (error) {
+            debugE("WebSocket incoming data deserialization error: %s", error.c_str());
+            return;
+        }
+
+        const char* event = payload["event"];
+        if (strcmp(event, "set-switch-on") == 0) {
+           shelly.triggerStateSwitch(Switch::ON);
+        }
+
+        if (strcmp(event, "set-switch-off") == 0) {
+           shelly.triggerStateSwitch(Switch::OFF);
+        }
+
+        if (strcmp(event, "sensor-status") == 0) {
+            char sensorsPayload[100];
+            createSensorsEventMessage(sensorsPayload);
+            client->text(sensorsPayload);
+        }
+
+        if (strcmp(event, "save-settings") == 0) {
+            config.ppm_limit = payload["data"]["ppm_limit"];
+            strlcpy(
+                config.shelly_ip,
+                payload["data"]["shelly_ip"],
+                sizeof(config.shelly_ip)
+            );
+
+            saveConfiguration(configFilename, config);
+
+            char infoMessagePayload[100];
+            createInfoEventMessage(infoMessagePayload, "settings.saved");
+            client->text(infoMessagePayload);
+        }
+    }
+}
+
+void onWebsocketEvent(
+    AsyncWebSocket *server,
+    AsyncWebSocketClient *client,
+    AwsEventType type,
+    void *arg,
+    uint8_t *data,
+    size_t len
+) {
+    switch (type) {
+      case WS_EVT_CONNECT:
+        debugV("WebSocket client #%u connected from %s\n", client->id(), client->remoteIP().toString().c_str());
+        
+        char configPayload[100];
+        createConfigEventMessage(configPayload);
+        client->text(configPayload);
+        
+        char sensorsPayload[100];
+        createSensorsEventMessage(sensorsPayload);
+        client->text(sensorsPayload);
+
+        break;
+      case WS_EVT_DISCONNECT:
+        debugV("WebSocket client #%u disconnected\n", client->id());
+        break;
+      case WS_EVT_DATA:
+        handleWebSocketMessage(client, arg, data, len);
+        break;
+      case WS_EVT_PONG:
+      case WS_EVT_ERROR:
+        break;
+  }
+}
+
+void createConfigEventMessage(char *destination)
+{
+    char msgTemplate[] = R"===({"event":"config", "data":{ "shelly_ip":"%s", "ppm_limit":"%d"}})===";
+    
+    snprintf(destination, 100, msgTemplate, config.shelly_ip, config.ppm_limit);
+}
+
+void createSensorsEventMessage(char *destination)
+{
+    char msgTemplate[] = R"===({"event":"sensors", "data":{ "ppm":%d, "switch_state": %d }})===";
+    
+    snprintf(destination, 100, msgTemplate, sensors.ppm, shelly.getState() == Switch::ON ? 1 : 0);
+}
+
+void createInfoEventMessage(char *destination, char* code)
+{
+    char msgTemplate[] = R"===({"event":"info", "data":{ "code": "%s" }})===";
+    
+    snprintf(destination, 100, msgTemplate, code);
+}
+
+void notifyClientsWithError(char *message)
+{
+    char errorPayload[100];
+    char msgTemplate[] = R"===({"event":"error", "data":{ "code": "%s" }})===";
+    
+    snprintf(errorPayload, 100, msgTemplate, message);
+
+    webSocketServer.textAll(errorPayload);
+}
+
 /*****************************HTTP SERVER****************************************/
 
 const char INDEX_HTML[] PROGMEM = R"=="==(
@@ -248,62 +381,21 @@ const char INDEX_HTML[] PROGMEM = R"=="==(
 </html>
 )=="==";
 
-#include <ESP8266WiFi.h>
-// https://github.com/me-no-dev/ESPAsyncWebServer/issues/418#issuecomment-667976368
-#define WEBSERVER_H 1
-#include <ESPAsyncTCP.h>
-#include <ESPAsyncWebServer.h>
-
 AsyncWebServer httpServer(80);
-
-String processor(const String& var)
-{
-    if (var == "SHELLY_IP") {
-        return config.shelly_ip;
-    }
-    if (var == "PPM_LIMIT") {
-        return String(config.ppm_limit);
-    }
-    if (var == "SWITCH_ON") {
-        return String(shelly.getState() == Switch::ON ? "checked" : "");
-    }
-    if (var == "ENABLED_ON") {
-         return String(true ? "checked" : "");
-    }
-    if (var == "PPM") {
-        return String("AAAAA");
-    }
-    return String();
-}
 
 void setupHttpServer()
 {
-    httpServer.onNotFound([](AsyncWebServerRequest *request)
-    {
+    httpServer.onNotFound([](AsyncWebServerRequest *request) {
         request->send(404);
     });
       
     httpServer.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
-        request->send_P(200, "text/html", INDEX_HTML, processor);
+        request->send_P(200, "text/html", INDEX_HTML);
     });
 
-    httpServer.on("/config", HTTP_POST, [](AsyncWebServerRequest *request) {
-        config.ppm_limit = request->getParam("ppm_limit", true)->value().toInt();
-        request->getParam("shelly_ip", true)->value().toCharArray(config.shelly_ip, sizeof(config.shelly_ip));
+    webSocketServer.onEvent(onWebsocketEvent);
 
-        saveConfiguration(configFilename, config);
-
-        request->redirect("/");
-    });
-
-    httpServer.on("/switch/state", HTTP_POST, [](AsyncWebServerRequest *request) {
-    
-        shelly.triggerStateSwitch(
-            request->hasParam("switch_on", true) ? Switch::ON : Switch::OFF
-        );
-
-        request->redirect("/");
-    });
+    httpServer.addHandler(&webSocketServer);
 
     httpServer.begin();
 }
@@ -378,6 +470,7 @@ void setup() {
     setupWifiManager();
 
     setupHttpServer();
+
     setupMDNS();
     
     //setupMQSensor();

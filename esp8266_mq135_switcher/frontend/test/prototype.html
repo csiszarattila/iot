@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/5.0.0-alpha1/css/bootstrap.min.css" integrity="sha384-r4NyP46KrjDleawBgD5tp8Y7UzmLA05oM1iAEQ17CSuDqnUK2+k9luXQOfXJCJ4I" crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta1/dist/js/bootstrap.bundle.min.js" integrity="sha384-ygbV9kiqUc6oa4msXn9868pTtWMgiQaeYH7/t7LECLbyPA2x65Kgf80OJFdroafW" crossorigin="anonymous"></script>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <title>CO2 Szenzor</title>
+</head>
+<body>
+    <div class="container">
+        <div 
+            class="alert alert-danger"
+            role="alert"
+            x-text="error"
+            x-data="{error: false}"
+            x-show.transition="error"
+            @error-message.window="error = $event.detail.message"
+        >
+        </div>
+        <div
+            class="alert alert-success"
+            role="alert"
+            x-text="info"
+            x-data="{info: false}"
+            x-show.transition="info"
+            @info-message.window="info = $event.detail.message"
+        ></div>
+
+        <h3><i class="material-icons md-48">sensors</i></span>Kapcsoló</h3>
+        
+        <div class="form-check form-switch mb-3" x-data="shellySwitch()" @sensors-update.window="on = $event.detail.switch_state">
+            <input class="form-check-input" type="checkbox" name="switch_on" value="1" x-model:checked="on" @click="setState($event.target.checked)">
+            <label class="form-check-label" for="switch_on">Bekapcsolva</label>
+        </div>
+
+        <h3><i class="material-icons md-48">sensors</i></span>CO<sub>2</sub> szenzor</h3>
+        
+        <div x-data="{ ppm: 0 }" @sensors-update.window="ppm = $event.detail.ppm">
+            <p>Jelenlegi érték (ppm): <strong x-text="ppm"></strong></p>
+        </div>
+        
+        <h3 class="mt-3"><i class="material-icons md-48">settings</i></span>Beállítások</h3>
+        <form x-data="settings()" x-init="init">
+            <div class="form-check form-switch mb-3">
+                <input class="form-check-input" type="checkbox" id="flexSwitchCheckDefault" x-model="enabled">
+                <label class="form-check-label" for="flexSwitchCheckDefault">Automatikus ki/bekapcsolás</label>
+            </div>
+            <div class="mb-3">
+                <label for="ppm_limit" class="form-label">Bekapcsolási határ (ppm):</label>
+                <strong x-text="ppm_limit"></strong>
+                <input type="range" class="form-range" min="0" max="5000" step="10" name="ppm_limit" x-model="ppm_limit">
+            </div>
+            <div class="mb-3">
+                <label for="shelly_ip" class="form-label">Shelly kapcsoló ip címe:</label>
+                <input type="text" class="form-control" name="shelly_ip" x-model="shelly_ip">
+            </div>
+            <button type="submit" class="btn btn-primary" @click.prevent="save()">Beállítások mentése</button>
+        </form>
+    </div>
+
+    <script defer src="../dist/app.js"></script>
+</body>
+</html>
