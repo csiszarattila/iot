@@ -22,6 +22,7 @@ struct Config {
     int ppm_limit = 1000;
     char shelly_ip[40];
     char mdns_hostname[50] = "co2";
+    bool auto_switch_enabled = true;
 };
 
 Config config;
@@ -44,11 +45,14 @@ void loadConfiguration(const char *filename, Config &config)
     }
 
     config.ppm_limit = json["ppm_limit"] | 4321;
+    
     strlcpy(
         config.shelly_ip,
         json["shelly_ip"] | "192.168.0.1",
         sizeof(config.shelly_ip)
     );
+
+    config.auto_switch_enabled = json["auto_switch_enabled"] | true;
 
     configFile.close();
 }
@@ -68,6 +72,7 @@ void saveConfiguration(const char *filename, const Config &config)
 
     json["shelly_ip"] = config.shelly_ip;
     json["ppm_limit"] = config.ppm_limit;
+    json["auto_switch_enabled"] = config.auto_switch_enabled;
 
     if (serializeJson(json, configFile) == 0) {
         debugE("Failed to write config to file.");
@@ -254,11 +259,14 @@ void handleWebSocketMessage(
 
         if (strcmp(event, "save-settings") == 0) {
             config.ppm_limit = payload["data"]["ppm_limit"];
+            
             strlcpy(
                 config.shelly_ip,
                 payload["data"]["shelly_ip"],
                 sizeof(config.shelly_ip)
             );
+            
+            config.auto_switch_enabled = payload["data"]["auto_switch_enabled"];
 
             saveConfiguration(configFilename, config);
 
@@ -281,7 +289,7 @@ void onWebsocketEvent(
       case WS_EVT_CONNECT:
         debugV("WebSocket client #%u connected from %s\n", client->id(), client->remoteIP().toString().c_str());
         
-        char configPayload[100];
+        char configPayload[150];
         createConfigEventMessage(configPayload);
         client->text(configPayload);
         
@@ -304,9 +312,9 @@ void onWebsocketEvent(
 
 void createConfigEventMessage(char *destination)
 {
-    char msgTemplate[] = R"===({"event":"config", "data":{ "shelly_ip":"%s", "ppm_limit":"%d"}})===";
+    char msgTemplate[] = R"===({"event":"config", "data":{ "shelly_ip":"%s", "ppm_limit":"%d", "auto_switch_enabled": %s}})===";
     
-    snprintf(destination, 100, msgTemplate, config.shelly_ip, config.ppm_limit);
+    snprintf(destination, 150, msgTemplate, config.shelly_ip, config.ppm_limit, config.auto_switch_enabled ? "true" : "false");
 }
 
 void createSensorsEventMessage(char *destination)

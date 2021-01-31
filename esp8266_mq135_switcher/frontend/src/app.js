@@ -24,12 +24,12 @@ window.settings = function settings() {
     return {
         ppm_limit: 0,
         shelly_ip: "192.168.0.1",
-        enabled: true,
+        auto_switch_enabled: true,
         init () {
             window.addEventListener('config-update', (event) => {
                 this.ppm_limit = event.detail.ppm_limit;
                 this.shelly_ip = event.detail.shelly_ip;
-                this.enabled = event.detail.enabled;
+                this.auto_switch_enabled = event.detail.auto_switch_enabled;
             })
         },
         save () {
@@ -38,7 +38,8 @@ window.settings = function settings() {
                 "data": {
                     "enabled": this.enabled,
                     "ppm_limit": this.ppm_limit,
-                    "shelly_ip": this.shelly_ip
+                    "shelly_ip": this.shelly_ip,
+                    "auto_switch_enabled": this.auto_switch_enabled,
                 }
             }
 
