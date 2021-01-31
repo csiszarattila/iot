@@ -99,11 +99,11 @@ socket.onerror = function(error) {
 }
 
 function displayError(message) {
-    window.dispatchEvent(new CustomEvent('error-message', { detail: {"message": message} } ));
+    window.dispatchEvent(new CustomEvent('alert-message', { detail: {"message": message, "type": "error"} } ));
 }
 
 function displayInfo(message) {
-    window.dispatchEvent(new CustomEvent('info-message', { detail: {"message": message} } ));
+    window.dispatchEvent(new CustomEvent('alert-message', { detail: {"message": message, "type": "info"} } ));
 }
 
 // setInterval(function() {

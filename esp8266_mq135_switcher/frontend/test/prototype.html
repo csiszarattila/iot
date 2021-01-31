@@ -9,22 +9,13 @@
 </head>
 <body>
     <div class="container">
-        <div 
-            class="alert alert-danger"
-            role="alert"
-            x-text="error"
-            x-data="{error: false}"
-            x-show.transition="error"
-            @error-message.window="error = $event.detail.message"
-        >
-        </div>
         <div
-            class="alert alert-success"
-            role="alert"
-            x-text="info"
-            x-data="{info: false}"
-            x-show.transition="info"
-            @info-message.window="info = $event.detail.message"
+            class="alert"
+            :class="{'alert-success': type == 'info', 'alert-danger': type == 'error'}"
+            x-text="message"
+            x-data="{message: false, type: 'info'}"
+            x-show.transition="message"
+            @alert-message.window="message = $event.detail.message, type = $event.detail.type"
         ></div>
 
         <h3><i class="material-icons md-48">sensors</i></span>Kapcsoló</h3>
