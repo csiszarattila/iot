@@ -7,6 +7,7 @@
 ## Throught Arduino cli
 
 arduino-cli lib install RemoteDebug
+arduino-cli lib install "DHT sensor library"
 
 ## Some libraries require manual install
 
@@ -26,3 +27,7 @@ arduino-cli compile -b esp8266:esp8266:generic && arduino-cli upload -b esp8266:
 # Watch console
 
  stty 115200 -F /dev/ttyUSB0 raw -echo | cat /dev/ttyUSB0
+
+ # 
+
+ https://chewett.co.uk/blog/1066/pin-numbering-for-wemos-d1-mini-esp8266/

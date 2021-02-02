@@ -10,6 +10,7 @@
 #include <ESPAsyncWebServer.h>
 #include <FS.h>
 #include <ArduinoJson.h>
+#include <DHT.h>
 
 /*****************************REMOTEDEBUG****************************************/
 #include <RemoteDebug.h> //https://github.com/JoaoLopesF/RemoteDebug
@@ -114,6 +115,19 @@ struct Sensors {
 };
 
 Sensors sensors;
+
+
+/*****************************Temperature Sensor*******************************/
+#define DHT_PIN 4 // D2
+
+DHT tempSensor = DHT(DHT_PIN, DHT11);
+
+void readTemperatureSensor()
+{
+    sensors.temp = tempSensor.readTemperature();
+
+    debugV("Read temperature sensor: %.2f", sensors.temp);
+}
 
 /*****************************Shelly Switch***********************************/
 class Switch
@@ -252,7 +266,7 @@ void handleWebSocketMessage(
         }
 
         if (strcmp(event, "sensor-status") == 0) {
-            char sensorsPayload[100];
+            char sensorsPayload[150];
             createSensorsEventMessage(sensorsPayload);
             client->text(sensorsPayload);
         }
@@ -293,7 +307,7 @@ void onWebsocketEvent(
         createConfigEventMessage(configPayload);
         client->text(configPayload);
         
-        char sensorsPayload[100];
+        char sensorsPayload[150];
         createSensorsEventMessage(sensorsPayload);
         client->text(sensorsPayload);
 
@@ -314,14 +328,28 @@ void createConfigEventMessage(char *destination)
 {
     char msgTemplate[] = R"===({"event":"config", "data":{ "shelly_ip":"%s", "ppm_limit":"%d", "auto_switch_enabled": %s}})===";
     
-    snprintf(destination, 150, msgTemplate, config.shelly_ip, config.ppm_limit, config.auto_switch_enabled ? "true" : "false");
+    snprintf(
+        destination,
+        150,
+        msgTemplate,
+        config.shelly_ip,
+        config.ppm_limit,
+        config.auto_switch_enabled ? "true" : "false"
+    );
 }
 
 void createSensorsEventMessage(char *destination)
 {
-    char msgTemplate[] = R"===({"event":"sensors", "data":{ "ppm":%d, "switch_state": %d }})===";
+    char msgTemplate[] = R"===({"event":"sensors", "data":{ "ppm":%d, "temp": "%.2f", "switch_state": %d }})===";
     
-    snprintf(destination, 100, msgTemplate, sensors.ppm, shelly.getState() == Switch::ON ? 1 : 0);
+    snprintf(
+        destination,
+        150,
+        msgTemplate,
+        sensors.ppm,
+        sensors.temp,
+        shelly.getState() == Switch::ON ? 1 : 0
+    );
 }
 
 void createInfoEventMessage(char *destination, char* code)
@@ -339,6 +367,15 @@ void notifyClientsWithError(char *message)
     snprintf(errorPayload, 100, msgTemplate, message);
 
     webSocketServer.textAll(errorPayload);
+}
+
+void notifyClientsWithSensorsData()
+{
+    char sensorsPayload[150];
+
+    createSensorsEventMessage(sensorsPayload);
+
+    webSocketServer.textAll(sensorsPayload);
 }
 
 /*****************************HTTP SERVER****************************************/
@@ -465,6 +502,15 @@ int readMQSensor()
 
 /*****************************MAIN*********************************************/
 
+void refreshSensors()
+{
+    shelly.refreshState();
+
+    readTemperatureSensor();
+
+    notifyClientsWithSensorsData();
+}
+
 void setup() {
     Serial.begin(115200);
     if (!SPIFFS.begin()) {
@@ -484,6 +530,8 @@ void setup() {
     //setupMQSensor();
 
     shelly.refreshState();
+
+    tempSensor.begin();
 }
 
 void loop() {
@@ -491,7 +539,9 @@ void loop() {
 
     Debug.handle();
 
-    //readMQSensor();
+    refreshSensors();
 
     shelly.handleStateSwitch();
+
+    delay(30*1000);
 }
