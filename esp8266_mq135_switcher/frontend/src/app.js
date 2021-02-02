@@ -9,7 +9,7 @@ window.shellySwitch = function shellySwitch() {
 
     return {
         on: _on,
-        connectionError: false,
+        error: false,
         setState (on) {
             this._on = on;
 
@@ -81,6 +81,7 @@ socket.onmessage = function (message) {
         case "error":
             switch (payload.data.code) {
                 case "shelly.notfound":
+                    window.dispatchEvent(new CustomEvent('shelly-error'));
                     displayError("Nem található Shelly kapcsoló a megadott IP címen! Ellenőrizd, hogy áram alatt van és helyes-e a beállított IP címe.");
                     break;
                 case "shelly.setstate.failed":

@@ -4,8 +4,25 @@
     <meta charset="utf-8">
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/5.0.0-alpha1/css/bootstrap.min.css" integrity="sha384-r4NyP46KrjDleawBgD5tp8Y7UzmLA05oM1iAEQ17CSuDqnUK2+k9luXQOfXJCJ4I" crossorigin="anonymous">
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta1/dist/js/bootstrap.bundle.min.js" integrity="sha384-ygbV9kiqUc6oa4msXn9868pTtWMgiQaeYH7/t7LECLbyPA2x65Kgf80OJFdroafW" crossorigin="anonymous"></script>
-    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <script src="https://kit.fontawesome.com/0a9c0ea9bb.js" crossorigin="anonymous"></script>
     <title>CO2 Szenzor</title>
+    <style type="text/css">
+        .bg-aqi-very-good {
+           background-color: #00CCFF;
+        }
+        .bg-aqi-good {
+           background-color: lime;
+        }
+        .bg-aqi-moderate {
+           background-color: yellow;
+        }
+        .bg-aqi-polluted {
+           background-color: #FF9900;
+        }
+        .bg-aqi-very-polluted {
+           background-color: red;
+        }
+    </style>
 </head>
 <body>
     <div class="container">
@@ -18,36 +35,120 @@
             @alert-message.window="message = $event.detail.message, type = $event.detail.type"
         ></div>
 
-        <h3><i class="material-icons md-48">sensors</i></span>Kapcsoló</h3>
-        
-        <div class="form-check form-switch mb-3" x-data="shellySwitch()" @sensors-update.window="on = $event.detail.switch_state">
-            <input class="form-check-input" type="checkbox" name="switch_on" value="1" x-model:checked="on" @click="setState($event.target.checked)">
-            <label class="form-check-label" for="switch_on">Bekapcsolva</label>
+        <div class="row row-cols-auto g-2">
+            <div class="col">
+                <div 
+                    class="card text-dark bg-light text-center h-100"
+                    :class="{'border-danger': error}"
+                    style="max-width: 15rem;"
+                    x-data="{ aqi: 0, pm25: 0, pm10: 0, error: false }"
+                    @sensors-update.window="aqi = $event.detail.aqi, pm10 = $event.detail.pm10, pm25 = $event.detail.pm25"
+                    @aqs-error.window="error = true"
+                >
+                    <h4 class="card-header"><i class="fas fa-smog"></i> LM Index</h4>
+                    <div class="card-body">    
+                        <div class="h2">
+                            <p><strong x-text="aqi"></strong> </p>
+                        </div>
+                        <div class="h5">
+                            <p class="p-2 rounded"
+                                :class="{
+                                    'bg-aqi-very-polluted': pm10 >= 80,
+                                    'bg-aqi-polluted': pm10 >= 40 && pm10 < 80,
+                                    'bg-aqi-moderate': pm10 >= 32 && pm10 < 40,
+                                    'bg-aqi-good': pm10 >= 16 && pm10 < 32,
+                                    'bg-aqi-very-good': pm10 < 16
+                                }"
+                            >
+                                <strong>PM<sub>10</sub> - <span x-text="pm10"></span></strong> <small>µg/m3</small>
+                            </p>
+                            <p class="p-2 rounded"
+                                :class="{
+                                    'bg-aqi-very-polluted': pm25 >= 50,
+                                    'bg-aqi-polluted': pm25 >= 25 && pm25 < 50,
+                                    'bg-aqi-moderate': pm25 >= 20 && pm25 < 25,
+                                    'bg-aqi-good': pm25 >= 10 && pm25 < 20,
+                                    'bg-aqi-very-good': pm25 < 10
+                                }"
+                            >
+                                <strong>PM<sub>2,5</sub> - <span x-text="pm25"></span></strong> <small>µg/m3</small>
+                            </p>
+                        </div>
+                        <small><a href="http://www.levegominoseg.hu/index" target="_blank">skála</a></small>
+                    </div>
+                </div>
+            </div>
+            <div class="col">
+                <div 
+                    class="card text-dark bg-light text-center h-100"
+                    :class="{'border-danger': error}"
+                    style="width: 15rem;"
+                    x-data="shellySwitch()"
+                    @sensors-update.window="on = $event.detail.switch_state"
+                    @shelly-error.window="error = true"
+                >
+                    <h4 class="card-header" :class="{'bg-danger': error}"><i class="fas fa-bolt"></i> Kapcsoló</h4>
+                    <div class="card-body h4 d-flex align-items-center justify-content-center">                        
+                        <div class="form-check form-switch">
+                            <input 
+                                class="form-check-input"
+                                type="checkbox"
+                                name="switch_on"
+                                value="1"
+                                x-model:checked="on"
+                                @click="setState($event.target.checked)"
+                                :disabled="error"
+                            >
+                            <label class="form-check-label" for="switch_on" x-text="on ? 'Bekapcsolva': 'Kikapcsolva'"></label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col">
+                <div 
+                    class="card text-dark bg-warning text-center h-100 mb-3"
+                    style="max-width: 15rem;"
+                    x-data="{ temp: 0 }" @sensors-update.window="temp = parseInt($event.detail.temp)"
+                >
+                    <h4 class="card-header"><i class="fas fa-thermometer-half"></i> Hőmérséklet</h4>
+                    <div class="card-body h2 d-flex align-items-center justify-content-center">
+                        <div>
+                            <p><strong><span x-text="temp"></span></strong> &#x2103</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
 
-        <h3><i class="material-icons md-48">sensors</i></span>CO<sub>2</sub> szenzor</h3>
-        
-        <div x-data="{ ppm: 0 }" @sensors-update.window="ppm = $event.detail.ppm">
-            <p>Jelenlegi érték (ppm): <strong x-text="ppm"></strong></p>
+        <div class="row mt-4">
+            <div class="col">
+                <div 
+                    class="card"
+                    style="max-width: 30rem;"
+                    x-data="settings()" x-init="init"
+                >
+                    <h4 class="card-header"><i class="fas fa-cog"></i> Beállítások</h4>
+                    <div class="card-body">
+                        <form>
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" id="flexSwitchCheckDefault" x-model="auto_switch_enabled">
+                                <label class="form-check-label" for="flexSwitchCheckDefault">Automatikus ki/bekapcsolás</label>
+                            </div>
+                            <div class="mb-3">
+                                <label for="ppm_limit" class="form-label">Bekapcsolási határ (LM Index):</label>
+                                <strong x-text="ppm_limit"></strong>
+                                <input type="range" class="form-range" min="0" max="5000" step="10" name="ppm_limit" x-model="ppm_limit">
+                            </div>
+                            <div class="mb-3">
+                                <label for="shelly_ip" class="form-label">Shelly kapcsoló ip címe:</label>
+                                <input type="text" class="form-control" name="shelly_ip" x-model="shelly_ip">
+                            </div>
+                            <button type="submit" class="btn btn-primary" @click.prevent="save()">Beállítások mentése</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
         </div>
-        
-        <h3 class="mt-3"><i class="material-icons md-48">settings</i></span>Beállítások</h3>
-        <form x-data="settings()" x-init="init">
-            <div class="form-check form-switch mb-3">
-                <input class="form-check-input" type="checkbox" id="flexSwitchCheckDefault" x-model="auto_switch_enabled">
-                <label class="form-check-label" for="flexSwitchCheckDefault">Automatikus ki/bekapcsolás</label>
-            </div>
-            <div class="mb-3">
-                <label for="ppm_limit" class="form-label">Bekapcsolási határ (ppm):</label>
-                <strong x-text="ppm_limit"></strong>
-                <input type="range" class="form-range" min="0" max="5000" step="10" name="ppm_limit" x-model="ppm_limit">
-            </div>
-            <div class="mb-3">
-                <label for="shelly_ip" class="form-label">Shelly kapcsoló ip címe:</label>
-                <input type="text" class="form-control" name="shelly_ip" x-model="shelly_ip">
-            </div>
-            <button type="submit" class="btn btn-primary" @click.prevent="save()">Beállítások mentése</button>
-        </form>
     </div>
 
     <script defer src="../dist/app.js"></script>
