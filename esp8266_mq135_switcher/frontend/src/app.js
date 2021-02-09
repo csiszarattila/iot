@@ -87,6 +87,10 @@ socket.onmessage = function (message) {
                 case "shelly.setstate.failed":
                     displayError("A Shelly kapcsolása meghíúsult! Ellenőrizd, hogy áram alatt van és helyes-e a beállított IP címe.");
                     break;
+                case "aqs.notfound":
+                    window.dispatchEvent(new CustomEvent('aqs-error'));
+                    displayError("Levegőminőség szenzor hiba! Nincs csatlakoztatva.");
+                    break;
                 default:
                     displayError("Ismeretlen hibakód:" + payload.data.code);
                     break;

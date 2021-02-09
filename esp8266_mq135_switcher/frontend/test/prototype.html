@@ -27,13 +27,18 @@
 <body>
     <div class="container">
         <div
-            class="alert"
-            :class="{'alert-success': type == 'info', 'alert-danger': type == 'error'}"
-            x-text="message"
-            x-data="{message: false, type: 'info'}"
-            x-show.transition="message"
-            @alert-message.window="message = $event.detail.message, type = $event.detail.type"
-        ></div>
+            x-data="{ messages: [] }"
+            @alert-message.window="messages.push({'message': $event.detail.message, 'type': $event.detail.type}), setInterval(function () { messages.pop() }, 60000)"
+        >
+            <template x-for="message in messages">
+                <div
+                    class="alert"
+                    :class="{'alert-success': message.type == 'info', 'alert-danger': message.type == 'error'}"
+                    x-text="message.message"
+                    x-show.transition="message"
+                ></div>
+            </template>
+        </div>
 
         <div class="row row-cols-auto g-2">
             <div class="col">

@@ -11,6 +11,7 @@
 #include <FS.h>
 #include <ArduinoJson.h>
 #include <DHT.h>
+#include <SdsDustSensor.h>
 
 /*****************************REMOTEDEBUG****************************************/
 #include <RemoteDebug.h> //https://github.com/JoaoLopesF/RemoteDebug
@@ -111,7 +112,11 @@ void setupDebug()
 
 /*****************************Sensors*****************************************/
 struct Sensors {
-    int ppm = 0;
+    int aqi = 0;
+    float pm10 = 0;
+    float pm25 = 0;
+    float temp = 0;
+    float humidity = 0;
 };
 
 Sensors sensors;
@@ -127,6 +132,70 @@ void readTemperatureSensor()
     sensors.temp = tempSensor.readTemperature();
 
     debugV("Read temperature sensor: %.2f", sensors.temp);
+}
+/*****************************AIR QUALITY SENSOR - SDS011*********************/
+#define RX_PIN 12 // D6
+#define TX_PIN 13 // D7
+SdsDustSensor sdsSensor(RX_PIN, TX_PIN);
+
+void setupAirQualitySensor()
+{
+    sdsSensor.begin();
+    delay(10);
+    sdsSensor.wakeup();
+    delay(10);
+
+    // We want to query the data from the sensor
+    sdsSensor.setQueryReportingMode();
+}
+
+volatile unsigned long wakeUpAt = 0;
+volatile unsigned long nextReadAt = 0;
+volatile unsigned int readAttempts = 5;
+
+#define SDS_SENSOR_READ_INTERVAL 60 * 1000; // 1m
+
+void readAirQualitySensor()
+{
+    if (wakeUpAt < millis()) {
+        debugV("Wakeup sensor");
+        sdsSensor.wakeup();
+        wakeUpAt = millis() + SDS_SENSOR_READ_INTERVAL;
+        nextReadAt = millis() + 30*1000; // 30s
+    }
+
+    if (nextReadAt && nextReadAt < millis()) {
+        if (readAttempts == 0) {
+            debugV("Sleep sensor");
+            readAttempts = 5;
+            nextReadAt = 0;
+            sdsSensor.sleep();
+            return;
+        }
+
+        nextReadAt = millis() + 3000; // 3s per queris as sds datasheet advise
+        readAttempts--;
+
+        PmResult result = sdsSensor.queryPm();
+        if (result.isOk()) {
+            debugV("PM10: %.2f", result.pm10);
+            debugV("PM2.5: %.2f", result.pm25);
+
+            sensors.pm10 = result.pm10;
+            sensors.pm25 = result.pm25;
+            readAttempts = 0;
+        } else {
+            debugV("Air Quality Sensor read error: %s", result.statusToString().c_str());
+            
+            if (result.status == Status::NotAvailable) {
+                notifyClientsWithError("aqs.notfound");
+            } else {
+                char *errorCode = "aqs.error:";
+                strcat(errorCode, result.statusToString().c_str());
+                notifyClientsWithError(errorCode);
+            }
+        }
+    }
 }
 
 /*****************************Shelly Switch***********************************/
@@ -340,13 +409,15 @@ void createConfigEventMessage(char *destination)
 
 void createSensorsEventMessage(char *destination)
 {
-    char msgTemplate[] = R"===({"event":"sensors", "data":{ "ppm":%d, "temp": "%.2f", "switch_state": %d }})===";
+    char msgTemplate[] = R"===({"event":"sensors", "data":{ "aqi":%d, "pm10": %.2f, "pm25": %.2f, "temp": "%.2f", "switch_state": %d }})===";
     
     snprintf(
         destination,
         150,
         msgTemplate,
-        sensors.ppm,
+        sensors.aqi,
+        sensors.pm10,
+        sensors.pm25,
         sensors.temp,
         shelly.getState() == Switch::ON ? 1 : 0
     );
@@ -359,12 +430,12 @@ void createInfoEventMessage(char *destination, char* code)
     snprintf(destination, 100, msgTemplate, code);
 }
 
-void notifyClientsWithError(char *message)
+void notifyClientsWithError(char *code)
 {
     char errorPayload[100];
     char msgTemplate[] = R"===({"event":"error", "data":{ "code": "%s" }})===";
     
-    snprintf(errorPayload, 100, msgTemplate, message);
+    snprintf(errorPayload, 100, msgTemplate, code);
 
     webSocketServer.textAll(errorPayload);
 }
@@ -502,13 +573,22 @@ int readMQSensor()
 
 /*****************************MAIN*********************************************/
 
+volatile unsigned long notifyClientsWithSensorsDataAt = 0;
+
+#define WEBSOCKET_SENSOR_DATA_UPDATE_INTERVAL 30*1000; // 30 s
+
 void refreshSensors()
 {
     shelly.refreshState();
 
     readTemperatureSensor();
 
-    notifyClientsWithSensorsData();
+    readAirQualitySensor();
+
+    if (notifyClientsWithSensorsDataAt < millis()) {
+        notifyClientsWithSensorsData();
+        notifyClientsWithSensorsDataAt = millis() + WEBSOCKET_SENSOR_DATA_UPDATE_INTERVAL;
+    }
 }
 
 void setup() {
@@ -532,6 +612,8 @@ void setup() {
     shelly.refreshState();
 
     tempSensor.begin();
+    
+    setupAirQualitySensor();
 }
 
 void loop() {
