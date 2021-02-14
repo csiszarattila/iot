@@ -11,6 +11,7 @@
 #include <FS.h>
 #include <ArduinoJson.h>
 #include <DHT.h>
+#include <WiFiClientSecureBearSSL.h>
 #include <SdsDustSensor.h>
 
 /*****************************REMOTEDEBUG****************************************/
@@ -153,7 +154,7 @@ volatile unsigned long wakeUpAt = 0;
 volatile unsigned long nextReadAt = 0;
 volatile unsigned int readAttempts = 5;
 
-#define SDS_SENSOR_READ_INTERVAL 60 * 1000; // 1m
+#define SDS_SENSOR_READ_INTERVAL 5 * 60 * 1000; // 5m
 
 void readAirQualitySensor()
 {
@@ -173,7 +174,7 @@ void readAirQualitySensor()
             return;
         }
 
-        nextReadAt = millis() + 3000; // 3s per queris as sds datasheet advise
+        nextReadAt = millis() + 3000; // 3s per queries as sds datasheet advise
         readAttempts--;
 
         PmResult result = sdsSensor.queryPm();
@@ -516,59 +517,45 @@ void setupHttpServer()
     httpServer.begin();
 }
 
-/*****************************MQ-135 Sensor************************************/
-#include <MQUnifiedsensor.h>
+volatile unsigned long nextGoogleSheetsUpdateAt = 0;
 
-#define Board "ESP8266"
-#define Voltage_Resolution 3
-#define ADC_Bit_Resolution 10
-#define MQSensorType "MQ-135"
-#define MQSensorPin A0
-#define MQLoadResistor 10 // KOhm
-#define MQRatioOnCleanAir 4.4 // RS / R0 = 4.4 ppm
-#define MQRegressionMethod 2 //_PPM =  a*ratio^b
+#define GOOGLE_SHEET_UPDATE_INTERVAL 5*60*1000 // 5m
 
-MQUnifiedsensor MQ135(Board, Voltage_Resolution, ADC_Bit_Resolution, MQSensorPin, MQSensorType);
-
-void setupMQSensor()
+void sendDataToGoogleSheets()
 {
-    MQ135.setA(110.47); MQ135.setB(-2.862); // Configurate the equation values to get CO2 concentration
-    MQ135.setRL(MQLoadResistor);
-    MQ135.setRegressionMethod(MQRegressionMethod); 
-    MQ135.init();
-    calibrateMQSensor();
-}
-
-int calibrateMQSensor()
-{
-    Serial.print("MQ135: Calibrating please wait.");
-    float calculatedR0 = 0;
-    int numberOfSamples = 100;
-    for (int i=1; i <= numberOfSamples; i++) {
-        MQ135.update();
-        calculatedR0 += MQ135.calibrate(MQRatioOnCleanAir);
-        Serial.print(".");
+    if (nextGoogleSheetsUpdateAt > millis()) {
+        return;
     }
 
-    MQ135.setR0(calculatedR0 / numberOfSamples);
-    Serial.println("  done!.");
+    nextGoogleSheetsUpdateAt = millis() + GOOGLE_SHEET_UPDATE_INTERVAL;
 
-    Serial.print("MQ135: Calibrated R0  = ");
-    Serial.println(calculatedR0 / numberOfSamples);
+    std::unique_ptr<BearSSL::WiFiClientSecure>client(new BearSSL::WiFiClientSecure);
 
-    if (isinf(calculatedR0) || calculatedR0 == 0) {
-        Serial.println("MQ135: Error, R0 value invalid, please check your wiring and supply");
-        while(1);
+    client->setInsecure();
+    client->setBufferSizes(512, 512);
+
+    client->connect("script.google.com", 443);
+    if (!client->connected()) {
+        debugE("Failed to connect script.google.com");
+        return;
     }
 
-    MQ135.serialDebug(true);
-}
+    char parameters[60];
+    
+    snprintf(
+        parameters,
+        60,
+        "?temperature=%.1f&humidity=%.1f&pm25=%.2f&pm10=%.2f",
+        sensors.temp,
+        sensors.humidity,
+        sensors.pm25,
+        sensors.pm10
+    );
 
-int readMQSensor()
-{
-    MQ135.update();
-    MQ135.readSensor();
-    MQ135.serialDebug();
+    client->write("GET /macros/s/AKfycbypJ1kblXzkFC05FG_OlAuAoghtzLHWvQxKG7s1MGFpCPblUSbL6iT_VQ/exec");
+    client->write(parameters);
+    client->write(" HTTP/1.1\r\nHost: script.google.com\r\n\r\n");
+    client->flush();
 }
 
 /*****************************MAIN*********************************************/
@@ -614,6 +601,7 @@ void setup() {
     tempSensor.begin();
     
     setupAirQualitySensor();
+    nextGoogleSheetsUpdateAt = millis() + GOOGLE_SHEET_UPDATE_INTERVAL;
 }
 
 void loop() {
@@ -626,4 +614,5 @@ void loop() {
     shelly.handleStateSwitch();
 
     delay(30*1000);
+    sendDataToGoogleSheets();
 }
