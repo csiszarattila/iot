@@ -1,5 +1,4 @@
 #include <ESP8266WiFi.h>
-#include <ESP8266HTTPClient.h>
 #include <ESP8266mDNS.h>
 #include <DNSServer.h>
 #include <WiFiManager.h>
@@ -11,6 +10,7 @@
 #include <FS.h>
 #include <ArduinoJson.h>
 #include <DHT.h>
+#include <ESP8266HTTPClient.h>
 #include <WiFiClientSecureBearSSL.h>
 #include <SdsDustSensor.h>
 
@@ -114,10 +114,10 @@ void setupDebug()
 /*****************************Sensors*****************************************/
 struct Sensors {
     int aqi = 0;
-    float pm10 = 0;
-    float pm25 = 0;
-    float temp = 0;
-    float humidity = 0;
+    float pm10 = -1.0;
+    float pm25 = -1.0;
+    float temp = 0.0;
+    float humidity = 0.0;
 };
 
 Sensors sensors;
@@ -128,12 +128,20 @@ Sensors sensors;
 
 DHT tempSensor = DHT(DHT_PIN, DHT11);
 
+#define TEMP_SENSOR_READ_INTERVAL 5 * 60000; // 5m
+volatile unsigned long nextTempReadAt = 0;
 void readTemperatureSensor()
 {
-    sensors.temp = tempSensor.readTemperature();
+    if (nextTempReadAt < millis()) {
+        sensors.temp = tempSensor.readTemperature();
+        sensors.humidity = tempSensor.readHumidity();
+        
+        debugV("Read T: %.2f, H: %.2f", sensors.temp, sensors.humidity);
 
-    debugV("Read temperature sensor: %.2f", sensors.temp);
+        nextTempReadAt = millis() + TEMP_SENSOR_READ_INTERVAL;
+    }
 }
+
 /*****************************AIR QUALITY SENSOR - SDS011*********************/
 #define RX_PIN 12 // D6
 #define TX_PIN 13 // D7
@@ -154,7 +162,7 @@ volatile unsigned long wakeUpAt = 0;
 volatile unsigned long nextReadAt = 0;
 volatile unsigned int readAttempts = 5;
 
-#define SDS_SENSOR_READ_INTERVAL 5 * 60 * 1000; // 5m
+#define SDS_SENSOR_READ_INTERVAL 5 * 60000; // 5m
 
 void readAirQualitySensor()
 {
@@ -184,6 +192,9 @@ void readAirQualitySensor()
 
             sensors.pm10 = result.pm10;
             sensors.pm25 = result.pm25;
+
+            sensors.aqi = (sensors.pm10 + sensors.pm25) / 2;
+
             readAttempts = 0;
         } else {
             debugV("Air Quality Sensor read error: %s", result.statusToString().c_str());
@@ -210,6 +221,12 @@ class Switch
 
         void refreshState()
         {
+            if (_nextRefreshStateTime > millis()) {
+                return;
+            }
+
+            _nextRefreshStateTime = millis() + 15*1000; // 15s
+
             HTTPClient httpClient;
 
             // https://arduinojson.org/v6/how-to/use-arduinojson-with-httpclient/
@@ -266,11 +283,15 @@ class Switch
         }
 
         void turnOn() {
-            setState(ON);
+            if (state != ON) {
+                setState(ON);
+            }
         }
 
         void turnOff() {
-            setState(OFF);
+            if (state != OFF) {
+                setState(OFF);
+            }
         }
 
         void toggle() {
@@ -292,11 +313,34 @@ class Switch
             }
         }
 
+        void handleAutoSwitch()
+        {
+            if (! config.auto_switch_enabled) {
+                return;
+            }
+
+             _changeStateNextTime = false;
+
+            if (_nextAutoSwitchTime < millis()) {
+                if (sensors.aqi >= config.ppm_limit) {
+                    turnOff();
+                    _nextAutoSwitchTime = millis() + 60*60*1000; // 1h
+                } else {
+                    turnOn();
+                    _nextAutoSwitchTime = millis() + 60*1000; // 1m
+                }
+            }
+        }
+
     private:
         RelayState state = OFF;
 
         bool _changeStateNextTime = false;
         RelayState _changeStateNextTimeTo = ON;
+
+        int _nextAutoSwitchTime = 0;
+
+        int _nextRefreshStateTime = 0;
 
         String ip;
 };
@@ -476,7 +520,7 @@ void setupHttpServer()
 
 volatile unsigned long nextGoogleSheetsUpdateAt = 0;
 
-#define GOOGLE_SHEET_UPDATE_INTERVAL 5*60*1000 // 5m
+#define GOOGLE_SHEET_UPDATE_INTERVAL 5*60000 // 5m
 
 void sendDataToGoogleSheets()
 {
@@ -502,11 +546,12 @@ void sendDataToGoogleSheets()
     snprintf(
         parameters,
         60,
-        "?temperature=%.1f&humidity=%.1f&pm25=%.2f&pm10=%.2f",
+        "?temperature=%.1f&humidity=%.1f&pm25=%.2f&pm10=%.2f&aqi=%d",
         sensors.temp,
         sensors.humidity,
         sensors.pm25,
-        sensors.pm10
+        sensors.pm10,
+        sensors.aqi
     );
 
     client->write("GET /macros/s/AKfycbypJ1kblXzkFC05FG_OlAuAoghtzLHWvQxKG7s1MGFpCPblUSbL6iT_VQ/exec");
@@ -519,7 +564,7 @@ void sendDataToGoogleSheets()
 
 volatile unsigned long notifyClientsWithSensorsDataAt = 0;
 
-#define WEBSOCKET_SENSOR_DATA_UPDATE_INTERVAL 30*1000; // 30 s
+#define WEBSOCKET_SENSOR_DATA_UPDATE_INTERVAL 30000; // 30 s
 
 void refreshSensors()
 {
@@ -558,7 +603,8 @@ void setup() {
     tempSensor.begin();
     
     setupAirQualitySensor();
-    nextGoogleSheetsUpdateAt = millis() + GOOGLE_SHEET_UPDATE_INTERVAL;
+
+    nextGoogleSheetsUpdateAt = millis() + 60000; // 1m
 }
 
 void loop() {
@@ -568,8 +614,9 @@ void loop() {
 
     refreshSensors();
 
-    shelly.handleStateSwitch();
+    shelly.handleAutoSwitch();
 
-    delay(30*1000);
+    shelly.handleStateSwitch();
+    
     sendDataToGoogleSheets();
 }
