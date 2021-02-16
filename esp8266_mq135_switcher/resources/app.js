@@ -48,8 +48,8 @@ window.settings = function settings() {
     }
 }
 
-const host = "ws://192.168.0.128/ws";
-//const host = `ws://${window.location.hostname}/ws`;
+const host = `ws://${window.location.hostname}/ws`;
+//const host = "ws://192.168.0.128/ws";
 
 const socket = new WebSocket(host);
 

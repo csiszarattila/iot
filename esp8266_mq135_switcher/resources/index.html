@@ -7,20 +7,20 @@
     <script src="https://kit.fontawesome.com/0a9c0ea9bb.js" crossorigin="anonymous"></script>
     <title>CO2 Szenzor</title>
     <style type="text/css">
-        .bg-aqi-very-good {
-           background-color: #00CCFF;
+        .bg-aqi-very-low {
+           background-color: #79bc6a;
         }
-        .bg-aqi-good {
-           background-color: lime;
+        .bg-aqi-low {
+           background-color: #bbcf4c;
         }
-        .bg-aqi-moderate {
-           background-color: yellow;
+        .bg-aqi-medium {
+           background-color: #eec20b;
         }
-        .bg-aqi-polluted {
-           background-color: #FF9900;
+        .bg-aqi-high {
+           background-color: #f29305;
         }
-        .bg-aqi-very-polluted {
-           background-color: red;
+        .bg-aqi-very-high {
+           background-color: #e8416f;
         }
     </style>
 </head>
@@ -53,33 +53,41 @@
                     <h4 class="card-header"><i class="fas fa-smog"></i> LM Index</h4>
                     <div class="card-body">    
                         <div class="h2">
-                            <p><strong x-text="aqi"></strong> </p>
+                            <p
+                                :class="{
+                                    'bg-aqi-very-high': pm10 >= 100,
+                                    'bg-aqi-high': pm10 >= 75 && pm10 < 100,
+                                    'bg-aqi-medium': pm10 >= 50 && pm10 < 75,
+                                    'bg-aqi-low': pm10 >= 25 && pm10 < 50,
+                                    'bg-aqi-very-low': pm10 < 25
+                                }"
+                            ><strong x-text="aqi"></strong></p>
                         </div>
                         <div class="h5">
                             <p class="p-2 rounded"
                                 :class="{
-                                    'bg-aqi-very-polluted': pm10 >= 80,
-                                    'bg-aqi-polluted': pm10 >= 40 && pm10 < 80,
-                                    'bg-aqi-moderate': pm10 >= 32 && pm10 < 40,
-                                    'bg-aqi-good': pm10 >= 16 && pm10 < 32,
-                                    'bg-aqi-very-good': pm10 < 16
+                                    'bg-aqi-very-high': pm10 >= 180,
+                                    'bg-aqi-high': pm10 >= 90 && pm10 < 180,
+                                    'bg-aqi-medium': pm10 >= 50 && pm10 < 90,
+                                    'bg-aqi-low': pm10 >= 25 && pm10 < 50,
+                                    'bg-aqi-very-low': pm10 < 25
                                 }"
                             >
                                 <strong>PM<sub>10</sub> - <span x-text="pm10"></span></strong> <small>µg/m3</small>
                             </p>
                             <p class="p-2 rounded"
                                 :class="{
-                                    'bg-aqi-very-polluted': pm25 >= 50,
-                                    'bg-aqi-polluted': pm25 >= 25 && pm25 < 50,
-                                    'bg-aqi-moderate': pm25 >= 20 && pm25 < 25,
-                                    'bg-aqi-good': pm25 >= 10 && pm25 < 20,
-                                    'bg-aqi-very-good': pm25 < 10
+                                    'bg-aqi-very-high': pm25 >= 110,
+                                    'bg-aqi-high': pm25 >= 55 && pm25 < 110,
+                                    'bg-aqi-medium': pm25 >= 30 && pm25 < 55,
+                                    'bg-aqi-low': pm25 >= 15 && pm25 < 30,
+                                    'bg-aqi-very-low': pm25 < 15
                                 }"
                             >
                                 <strong>PM<sub>2,5</sub> - <span x-text="pm25"></span></strong> <small>µg/m3</small>
                             </p>
                         </div>
-                        <small><a href="http://www.levegominoseg.hu/index" target="_blank">skála</a></small>
+                        <small><a href="https://en.wikipedia.org/wiki/Air_quality_index#CAQI" target="_blank">skála</a></small>
                     </div>
                 </div>
             </div>
@@ -140,9 +148,9 @@
                                 <label class="form-check-label" for="flexSwitchCheckDefault">Automatikus ki/bekapcsolás</label>
                             </div>
                             <div class="mb-3">
-                                <label for="ppm_limit" class="form-label">Bekapcsolási határ (LM Index):</label>
+                                <label for="ppm_limit" class="form-label">Lekapcsolási határ (LM Index):</label>
                                 <strong x-text="ppm_limit"></strong>
-                                <input type="range" class="form-range" min="0" max="5000" step="10" name="ppm_limit" x-model="ppm_limit">
+                                <input type="range" class="form-range" min="0" max="100" step="1" name="ppm_limit" x-model="ppm_limit">
                             </div>
                             <div class="mb-3">
                                 <label for="shelly_ip" class="form-label">Shelly kapcsoló ip címe:</label>
@@ -155,7 +163,6 @@
             </div>
         </div>
     </div>
-
-    <script defer src="../dist/app.js"></script>
+    <script defer src="app.js"></script>
 </body>
 </html>

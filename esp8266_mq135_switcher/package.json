@@ -1,0 +1,21 @@
+{
+  "scripts": {
+    "test-webpage": "npx serve resources && mix watch",
+    "build-webpage": "mix --production && node build_webpage.js",
+    "compile": "arduino-cli compile -b esp8266:esp8266:generic",
+    "upload": "arduino-cli upload -b esp8266:esp8266:generic -p /dev/ttyUSB0",
+    "release": "npm run build-webpage && npm run compile && npm run upload"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "laravel-mix": "^6.0.0",
+    "postcss": "^8.2.1",
+    "websocket": "^1.0.33"
+  },
+  "dependencies": {
+    "alpinejs": "^2.8.0",
+    "@gfx/zopfli": "^1.0.15"
+  }
+}
