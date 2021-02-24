@@ -55,11 +55,11 @@
                         <div class="h2">
                             <p
                                 :class="{
-                                    'bg-aqi-very-high': pm10 >= 100,
-                                    'bg-aqi-high': pm10 >= 75 && pm10 < 100,
-                                    'bg-aqi-medium': pm10 >= 50 && pm10 < 75,
-                                    'bg-aqi-low': pm10 >= 25 && pm10 < 50,
-                                    'bg-aqi-very-low': pm10 < 25
+                                    'bg-aqi-very-high': aqi >= 100,
+                                    'bg-aqi-high': aqi >= 75 && pm10 < 100,
+                                    'bg-aqi-medium': aqi >= 50 && pm10 < 75,
+                                    'bg-aqi-low': aqi >= 25 && pm10 < 50,
+                                    'bg-aqi-very-low': aqi < 25
                                 }"
                             ><strong x-text="aqi"></strong></p>
                         </div>

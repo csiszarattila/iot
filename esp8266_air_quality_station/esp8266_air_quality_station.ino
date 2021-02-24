@@ -24,7 +24,7 @@ RemoteDebug Debug;
 struct Config {
     int ppm_limit = 1000;
     char shelly_ip[40];
-    char mdns_hostname[50] = "co2";
+    char mdns_hostname[50] = "LMSzenzor";
     bool auto_switch_enabled = true;
 };
 
@@ -106,7 +106,7 @@ void setupMDNS()
 /*****************************REMOTEDEBUG*************************************/
 void setupDebug()
 {
-    Debug.begin("co2");
+    Debug.begin("LMSzenzor");
     Debug.showColors(true);
     Debug.setSerialEnabled(true);
 }
@@ -130,6 +130,7 @@ DHT tempSensor = DHT(DHT_PIN, DHT11);
 
 #define TEMP_SENSOR_READ_INTERVAL 5 * 60000; // 5m
 volatile unsigned long nextTempReadAt = 0;
+
 void readTemperatureSensor()
 {
     if (nextTempReadAt < millis()) {
@@ -595,8 +596,6 @@ void setup() {
     setupHttpServer();
 
     setupMDNS();
-    
-    //setupMQSensor();
 
     shelly.refreshState();
 
