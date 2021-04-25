@@ -1,5 +1,4 @@
-import 'alpinejs';
-import { initializeComponent } from 'alpinejs';
+import './app.scss';
 
 window.switchState = false;
 

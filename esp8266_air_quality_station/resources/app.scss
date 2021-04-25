@@ -1,0 +1,21 @@
+@import "bootstrap";
+@import "bootstrap/scss/_functions";
+@import "bootstrap/scss/_variables";
+@import "bootstrap/scss/_mixins";
+@import "bootstrap/scss/_reboot";
+
+.bg-aqi-very-low {
+    background-color: #79bc6a;
+ }
+ .bg-aqi-low {
+    background-color: #bbcf4c;
+ }
+ .bg-aqi-medium {
+    background-color: #eec20b;
+ }
+ .bg-aqi-high {
+    background-color: #f29305;
+ }
+ .bg-aqi-very-high {
+    background-color: #e8416f;
+ }

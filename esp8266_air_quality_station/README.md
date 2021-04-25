@@ -44,3 +44,12 @@ telnet 192.168.x.x 23
 
 https://chewett.co.uk/blog/1066/pin-numbering-for-wemos-d1-mini-esp8266/
 https://github.com/ayushsharma82/ESP-DASH
+
+## Esp filesystem SPIFFS
+
+https://arduino-esp8266.readthedocs.io/en/latest/filesystem.html
+
+https://github.com/esp8266/arduino-esp8266fs-plugin/issues/51#issuecomment-739433154
+
+### Upload With Arduino IDE
+https://github.com/esp8266/arduino-esp8266fs-plugin

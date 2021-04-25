@@ -511,6 +511,18 @@ void setupHttpServer()
         response->addHeader("Content-Encoding","gzip");
         request->send(response);
     });
+      
+    httpServer.on("/alpine.js", HTTP_GET, [](AsyncWebServerRequest *request) {
+        AsyncWebServerResponse *response = request->beginResponse(SPIFFS, "/alpine.js.gz");
+        response->addHeader("Content-Encoding","gzip");
+        request->send(response);
+    });
+      
+    httpServer.on("/app.css", HTTP_GET, [](AsyncWebServerRequest *request) {
+        AsyncWebServerResponse *response = request->beginResponse(SPIFFS, "/app.css.gz", "text/css");
+        response->addHeader("Content-Encoding","gzip");
+        request->send(response);
+    });
 
     webSocketServer.onEvent(onWebsocketEvent);
 
