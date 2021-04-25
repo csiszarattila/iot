@@ -7,7 +7,7 @@
 #define WEBSERVER_H 1
 #include <ESPAsyncTCP.h>
 #include <ESPAsyncWebServer.h>
-#include <FS.h>
+#include <LittleFS.h>
 #include <ArduinoJson.h>
 #include <DHT.h>
 #include <ESP8266HTTPClient.h>
@@ -33,7 +33,7 @@ const char *configFilename = "/config.json";
 
 void loadConfiguration(const char *filename, Config &config)
 {
-    File configFile = SPIFFS.open(configFilename, "r");
+    File configFile = LittleFS.open(configFilename, "r");
     if (!configFile) {
         debugE("Failed to open config file for reading");
         // return;
@@ -64,7 +64,7 @@ void saveConfiguration(const char *filename, const Config &config)
 {
     debugV("Saving config...");
 
-    File configFile = SPIFFS.open(configFilename, "w");
+    File configFile = LittleFS.open(configFilename, "w");
     if (!configFile) {
         debugV("Failed to open config file for writing");
         return;
@@ -513,13 +513,13 @@ void setupHttpServer()
     });
       
     httpServer.on("/alpine.js", HTTP_GET, [](AsyncWebServerRequest *request) {
-        AsyncWebServerResponse *response = request->beginResponse(SPIFFS, "/alpine.js.gz");
+        AsyncWebServerResponse *response = request->beginResponse(LittleFS, "/alpine.js.gz");
         response->addHeader("Content-Encoding","gzip");
         request->send(response);
     });
       
     httpServer.on("/app.css", HTTP_GET, [](AsyncWebServerRequest *request) {
-        AsyncWebServerResponse *response = request->beginResponse(SPIFFS, "/app.css.gz", "text/css");
+        AsyncWebServerResponse *response = request->beginResponse(LittleFS, "/app.css.gz", "text/css");
         response->addHeader("Content-Encoding","gzip");
         request->send(response);
     });
@@ -595,7 +595,7 @@ void refreshSensors()
 
 void setup() {
     Serial.begin(115200);
-    if (!SPIFFS.begin()) {
+    if (!LittleFS.begin()) {
         Serial.println("Error mounting Filesystem");
     }
 
