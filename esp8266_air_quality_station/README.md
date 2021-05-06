@@ -51,5 +51,7 @@ https://arduino-esp8266.readthedocs.io/en/latest/filesystem.html
 
 https://github.com/esp8266/arduino-esp8266fs-plugin/issues/51#issuecomment-739433154
 
+https://github.com/earlephilhower/arduino-esp8266littlefs-plugin
+
 ### Upload With Arduino IDE
 https://github.com/esp8266/arduino-esp8266fs-plugin

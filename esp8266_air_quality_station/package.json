@@ -1,15 +1,16 @@
 {
   "scripts": {
     "watch": "webpack watch",
-    "test-webpage": "webpack && npm run download-alpine && node ./test_server.js",
+    "test-webpage": "webpack && npm run download-alpine && node test_server.js",
     "build-webpage": "webpack",
     "compile": "arduino-cli compile -b esp8266:esp8266:d1:xtal=80,vt=flash,exception=legacy,ssl=all,eesz=4M1M,ip=lm2f,dbg=Disabled,lvl=None____,wipe=none,baud=921600",
     "upload": "arduino-cli upload -b esp8266:esp8266:d1 -p /dev/ttyUSB0",
     "release": "npm run build-webpage && npm run compile && npm run upload",
     "download-alpine": "curl -o - https://cdn.jsdelivr.net/gh/alpinejs/alpine@v2.8.2/dist/alpine.min.js | gzip > build/alpine.js.gz",
     "create-fs-data-dir": "npm run build-webpage && npm run download-alpine && cp build/alpine.js.gz data/alpine.js.gz && gzip -c build/app.css > data/app.css.gz",
-    "make-fs": "npm run create-fs-data-dir && ~/.arduino15/packages/esp8266/tools/mkspiffs/2.5.0-4-b40a506/mkspiffs -c data -p 256 -b 8192 -s 1028096 build/fs.bin",
-    "upload-fs": "npm run make-fs && ~/.arduino15/packages/esp8266/hardware/esp8266/2.7.4/tools/esptool/esptool.py -p /dev/ttyUSB0 write_flash 0x300000 build/fs.bin"
+    "make-fs": "npm run create-fs-data-dir && ~/.arduino15/packages/esp8266/tools/mklittlefs/2.5.0-4-fe5bb56/mklittlefs -c data -p 256 -b 8192 -s 1028096 build/fs.bin",
+    "upload-fs": "npm run make-fs && ~/.arduino15/packages/esp8266/hardware/esp8266/2.7.4/tools/esptool/esptool.py -p /dev/ttyUSB0 write_flash 0x300000 build/fs.bin",
+    "console": "stty 115200 -F /dev/ttyUSB0 raw -echo | cat /dev/ttyUSB0"
   },
   "keywords": [],
   "author": "",
@@ -38,6 +39,7 @@
     "sass": "^1.32.8",
     "sass-loader": "^8.0.2",
     "style-loader": "^2.0.0",
+    "underscore": "^1.13.1",
     "webpack": "^5.24.2",
     "webpack-cli": "^4.5.0",
     "websocket": "^1.0.33"

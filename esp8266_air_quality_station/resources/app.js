@@ -1,5 +1,7 @@
 import './app.scss';
 
+window._ = require('underscore')
+
 window.switchState = false;
 
 window.shellySwitch = function shellySwitch() {
@@ -44,6 +46,28 @@ window.settings = function settings() {
 
             socket.send(JSON.stringify(message))
         }
+    }
+}
+
+window.sensorHistory = function sensorHistory() {
+    return {
+        items: [],
+        init () {
+            window.addEventListener('sensors-update', (event) => {
+                let found = _.find(this.items, (item, index) => {
+                    return item.at == event.detail.at;
+                })
+
+                if (! found) {
+                    this.items.push(event.detail)
+                    this.items = this.items.sort(function (a, b) { return a.at - b.at })
+                }
+
+                if (this.items.length == 20) { 
+                    this.items.pop()
+                }
+            })
+        },
     }
 }
 
@@ -110,8 +134,46 @@ function displayInfo(message) {
     window.dispatchEvent(new CustomEvent('alert-message', { detail: {"message": message, "type": "info"} } ));
 }
 
-// setInterval(function() {
-//     const message = {"event": "sensor-status"}
+window.formatUnixTimestamp = function (unixTimestamp) {
+    let t = new Intl.DateTimeFormat([], {
+        timeStyle: "medium",
+        dateStyle: "short"
+    });
 
-//     socket.send(JSON.stringify(message))
-// }, 2000);
+    return t.format(new Date(unixTimestamp*1000));
+}
+
+window.bg = {
+    aqi: function (aqi)
+    {
+        return {
+            'bg-aqi-very-high': aqi >= 100,
+            'bg-aqi-high': aqi >= 75 && aqi < 100,
+            'bg-aqi-medium': aqi >= 50 && aqi < 75,
+            'bg-aqi-low': aqi >= 25 && aqi < 50,
+            'bg-aqi-very-low': aqi < 25
+        }
+    },
+
+    pm10: function (pm10)
+    {
+        return {
+            'bg-aqi-very-high': pm10 >= 180,
+            'bg-aqi-high': pm10 >= 90 && pm10 < 180,
+            'bg-aqi-medium': pm10 >= 50 && pm10 < 90,
+            'bg-aqi-low': pm10 >= 25 && pm10 < 50,
+            'bg-aqi-very-low': pm10 < 25
+        }
+    },
+
+    pm25: function (pm25)
+    {
+        return {
+            'bg-aqi-very-high': pm25 >= 110,
+            'bg-aqi-high': pm25 >= 55 && pm25 < 110,
+            'bg-aqi-medium': pm25 >= 30 && pm25 < 55,
+            'bg-aqi-low': pm25 >= 15 && pm25 < 30,
+            'bg-aqi-very-low': pm25 < 15
+        }
+    }
+}

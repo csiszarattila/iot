@@ -13,6 +13,17 @@
 #include <ESP8266HTTPClient.h>
 #include <WiFiClientSecureBearSSL.h>
 #include <SdsDustSensor.h>
+#include <NTPClient.h>
+#include <WiFiUdp.h>
+#include "src/LinkedList.h"
+#include "src/Sensors.h"
+/*****************************NTP TIME*******************************************/
+#define NTP_OFFSET   60 * 60      // In seconds
+#define NTP_INTERVAL 60 * 60 * 1000    // In miliseconds
+#define NTP_ADDRESS  "europe.pool.ntp.org"
+
+WiFiUDP ntpUDP;
+NTPClient timeClient(ntpUDP, NTP_ADDRESS, 0, NTP_INTERVAL);
 
 /*****************************REMOTEDEBUG****************************************/
 #include <RemoteDebug.h> //https://github.com/JoaoLopesF/RemoteDebug
@@ -112,16 +123,7 @@ void setupDebug()
 }
 
 /*****************************Sensors*****************************************/
-struct Sensors {
-    int aqi = 0;
-    float pm10 = -1.0;
-    float pm25 = -1.0;
-    float temp = 0.0;
-    float humidity = 0.0;
-};
-
-Sensors sensors;
-
+SensorsHistory sensorsHistory;
 
 /*****************************Temperature Sensor*******************************/
 #define DHT_PIN 4 // D2
@@ -165,7 +167,7 @@ volatile unsigned int readAttempts = 5;
 
 #define SDS_SENSOR_READ_INTERVAL 5 * 60000; // 5m
 
-void readAirQualitySensor()
+bool readAirQualitySensor(Sensors *sensors)
 {
     if (wakeUpAt < millis()) {
         debugV("Wakeup sensor");
@@ -180,7 +182,7 @@ void readAirQualitySensor()
             readAttempts = 5;
             nextReadAt = 0;
             sdsSensor.sleep();
-            return;
+            return false;
         }
 
         nextReadAt = millis() + 3000; // 3s per queries as sds datasheet advise
@@ -191,12 +193,12 @@ void readAirQualitySensor()
             debugV("PM10: %.2f", result.pm10);
             debugV("PM2.5: %.2f", result.pm25);
 
-            sensors.pm10 = result.pm10;
-            sensors.pm25 = result.pm25;
-
-            sensors.aqi = (sensors.pm10 + sensors.pm25) / 2;
+            sensors->pm10 = result.pm10;
+            sensors->pm25 = result.pm25;
 
             readAttempts = 0;
+
+            return true;
         } else {
             debugV("Air Quality Sensor read error: %s", result.statusToString().c_str());
             
@@ -209,6 +211,8 @@ void readAirQualitySensor()
             }
         }
     }
+
+    return false;
 }
 
 /*****************************Shelly Switch***********************************/
@@ -323,7 +327,13 @@ class Switch
              _changeStateNextTime = false;
 
             if (_nextAutoSwitchTime < millis()) {
-                if (sensors.aqi >= config.ppm_limit) {
+                if (sensorsHistory.items.size() <= 0) {
+                    return;
+                }
+
+                Sensors last = sensorsHistory.last();
+
+                if (last.aqi() >= config.ppm_limit) {
                     turnOff();
                     _nextAutoSwitchTime = millis() + 60*60*1000; // 1h
                 } else {
@@ -382,7 +392,7 @@ void handleWebSocketMessage(
 
         if (strcmp(event, "sensor-status") == 0) {
             char sensorsPayload[150];
-            createSensorsEventMessage(sensorsPayload);
+            createSensorsEventMessage(sensorsPayload, sensorsHistory.last());
             client->text(sensorsPayload);
         }
 
@@ -422,9 +432,11 @@ void onWebsocketEvent(
         createConfigEventMessage(configPayload);
         client->text(configPayload);
         
-        char sensorsPayload[150];
-        createSensorsEventMessage(sensorsPayload);
-        client->text(sensorsPayload);
+        for (int idx = 0; idx < sensorsHistory.items.size(); idx++) {
+            char sensorsPayload[150];
+            createSensorsEventMessage(sensorsPayload, sensorsHistory.items.get(idx));
+            client->text(sensorsPayload);
+        }
 
         break;
       case WS_EVT_DISCONNECT:
@@ -453,18 +465,19 @@ void createConfigEventMessage(char *destination)
     );
 }
 
-void createSensorsEventMessage(char *destination)
+void createSensorsEventMessage(char *destination, Sensors data)
 {
-    char msgTemplate[] = R"===({"event":"sensors", "data":{ "aqi":%d, "pm10": %.2f, "pm25": %.2f, "temp": "%.2f", "switch_state": %d }})===";
+    char msgTemplate[] = R"===({"event":"sensors", "data":{ "at":%d,"aqi":%d,"pm10":%.2f,"pm25":%.2f,"temp":"%.2f","switch_state":%d }})===";
     
     snprintf(
         destination,
         150,
         msgTemplate,
-        sensors.aqi,
-        sensors.pm10,
-        sensors.pm25,
-        sensors.temp,
+        data.at,
+        data.aqi(),
+        data.pm10,
+        data.pm25,
+        data.temp,
         shelly.getState() == Switch::ON ? 1 : 0
     );
 }
@@ -486,11 +499,11 @@ void notifyClientsWithError(char *code)
     webSocketServer.textAll(errorPayload);
 }
 
-void notifyClientsWithSensorsData()
+void notifyClientsWithSensorsData(Sensors data)
 {
     char sensorsPayload[150];
 
-    createSensorsEventMessage(sensorsPayload);
+    createSensorsEventMessage(sensorsPayload, data);
 
     webSocketServer.textAll(sensorsPayload);
 }
@@ -555,6 +568,8 @@ void sendDataToGoogleSheets()
     }
 
     char parameters[60];
+
+    Sensors sensors = sensorsHistory.last();
     
     snprintf(
         parameters,
@@ -564,7 +579,7 @@ void sendDataToGoogleSheets()
         sensors.humidity,
         sensors.pm25,
         sensors.pm10,
-        sensors.aqi
+        sensors.aqi()
     );
 
     client->write("GET /macros/s/AKfycbypJ1kblXzkFC05FG_OlAuAoghtzLHWvQxKG7s1MGFpCPblUSbL6iT_VQ/exec");
@@ -583,12 +598,20 @@ void refreshSensors()
 {
     shelly.refreshState();
 
-    readTemperatureSensor();
+    Sensors data;
 
-    readAirQualitySensor();
+    // readTemperatureSensor();
 
-    if (notifyClientsWithSensorsDataAt < millis()) {
-        notifyClientsWithSensorsData();
+    if (readAirQualitySensor(&data)) {
+        data.at = timeClient.getEpochTime();
+        sensorsHistory.addData(data);
+        // sensorsHistory.print();
+    }
+
+    if (! sensorsHistory.isEmpty()
+        && notifyClientsWithSensorsDataAt < millis()
+    ) {
+        notifyClientsWithSensorsData(sensorsHistory.last());
         notifyClientsWithSensorsDataAt = millis() + WEBSOCKET_SENSOR_DATA_UPDATE_INTERVAL;
     }
 }
@@ -598,6 +621,8 @@ void setup() {
     if (!LittleFS.begin()) {
         Serial.println("Error mounting Filesystem");
     }
+    
+    timeClient.begin();
 
     setupDebug();
 
@@ -616,12 +641,16 @@ void setup() {
     setupAirQualitySensor();
 
     nextGoogleSheetsUpdateAt = millis() + 60000; // 1m
+
+    sensorsHistory.restore();
 }
 
 void loop() {
     MDNS.update();
 
     Debug.handle();
+
+    timeClient.update();
 
     refreshSensors();
 

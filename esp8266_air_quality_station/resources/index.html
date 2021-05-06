@@ -36,37 +36,15 @@
                     <h4 class="card-header"><i class="fas fa-smog"></i> LM Index</h4>
                     <div class="card-body">    
                         <div class="h2">
-                            <p
-                                :class="{
-                                    'bg-aqi-very-high': aqi >= 100,
-                                    'bg-aqi-high': aqi >= 75 && pm10 < 100,
-                                    'bg-aqi-medium': aqi >= 50 && pm10 < 75,
-                                    'bg-aqi-low': aqi >= 25 && pm10 < 50,
-                                    'bg-aqi-very-low': aqi < 25
-                                }"
-                            ><strong x-text="aqi"></strong></p>
+                            <p class="rounded" :class="window.bg.aqi(aqi)">
+                                <strong x-text="aqi"></strong>
+                            </p>
                         </div>
                         <div class="h5">
-                            <p class="p-2 rounded"
-                                :class="{
-                                    'bg-aqi-very-high': pm10 >= 180,
-                                    'bg-aqi-high': pm10 >= 90 && pm10 < 180,
-                                    'bg-aqi-medium': pm10 >= 50 && pm10 < 90,
-                                    'bg-aqi-low': pm10 >= 25 && pm10 < 50,
-                                    'bg-aqi-very-low': pm10 < 25
-                                }"
-                            >
+                            <p class="p-2 rounded bd-green-400" :class="window.bg.pm10(pm10)">
                                 <strong>PM<sub>10</sub> - <span x-text="pm10"></span></strong> <small>µg/m3</small>
                             </p>
-                            <p class="p-2 rounded"
-                                :class="{
-                                    'bg-aqi-very-high': pm25 >= 110,
-                                    'bg-aqi-high': pm25 >= 55 && pm25 < 110,
-                                    'bg-aqi-medium': pm25 >= 30 && pm25 < 55,
-                                    'bg-aqi-low': pm25 >= 15 && pm25 < 30,
-                                    'bg-aqi-very-low': pm25 < 15
-                                }"
-                            >
+                            <p class="p-2 rounded" :class="window.bg.pm25(pm25)">
                                 <strong>PM<sub>2,5</sub> - <span x-text="pm25"></span></strong> <small>µg/m3</small>
                             </p>
                         </div>
@@ -104,13 +82,48 @@
                 <div 
                     class="card text-dark bg-warning text-center h-100 mb-3"
                     style="max-width: 15rem;"
-                    x-data="{ temp: 0 }" @sensors-update.window="temp = parseInt($event.detail.temp)"
+                    x-data="{ temp: 0 }"
+                    @sensors-update.window="temp = parseInt($event.detail.temp)"
                 >
                     <h4 class="card-header"><i class="fas fa-thermometer-half"></i> Hőmérséklet</h4>
                     <div class="card-body h2 d-flex align-items-center justify-content-center">
                         <div>
                             <p><strong><span x-text="temp"></span></strong> &#x2103</p>
                         </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mt-4">
+            <div class="col">
+                <div 
+                    class="card"
+                    style="max-width: 30rem;"
+                    x-data="sensorHistory()" x-init="init"
+                >
+                    <h4 class="card-header"><i class="fas fa-cog"></i> Legutóbbi mérések</h4>
+                    <div class="card-body">
+                        <table class="table">
+                            <thead class="">
+                                <tr>
+                                    <th>Időpont</th>
+                                    <th>PM<sub>10</sub></th>
+                                    <th>PM<sub>2,5</sub></th>
+                                    <th>Index</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template x-for="item in items.sort(function (lft, rgt) { return rgt.at - lft.at })" :key="item.at">
+                                    <tr>
+                                        <td x-text="window.formatUnixTimestamp(item.at)"></td>
+                                        <td x-text="item.pm10" :class="window.bg.pm10(item.pm10)"></td>
+                                        <td x-text="item.pm25" :class="window.bg.pm25(item.pm25)"></td>
+                                        <td x-text="item.aqi" :class="window.bg.aqi(item.aqi)"></td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>
