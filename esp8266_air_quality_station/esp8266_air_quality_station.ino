@@ -17,6 +17,10 @@
 #include <WiFiUdp.h>
 #include "src/LinkedList.h"
 #include "src/Sensors.h"
+
+#define DEMO_MODE true
+
+
 /*****************************NTP TIME*******************************************/
 #define NTP_OFFSET   60 * 60      // In seconds
 #define NTP_INTERVAL 60 * 60 * 1000    // In miliseconds
@@ -169,6 +173,16 @@ volatile unsigned int readAttempts = 5;
 
 bool readAirQualitySensor(Sensors *sensors)
 {
+    if (DEMO_MODE) {
+        if (nextReadAt < millis()) {
+            sensors->pm10 = 35.5;
+            sensors->pm25 = 26.5;
+            nextReadAt = millis() + SDS_SENSOR_READ_INTERVAL
+            return true;
+        }
+        return false;
+    }
+
     if (wakeUpAt < millis()) {
         debugV("Wakeup sensor");
         sdsSensor.wakeup();
@@ -550,7 +564,7 @@ volatile unsigned long nextGoogleSheetsUpdateAt = 0;
 
 void sendDataToGoogleSheets()
 {
-    if (nextGoogleSheetsUpdateAt > millis()) {
+    if (DEMO_MODE || nextGoogleSheetsUpdateAt > millis()) {
         return;
     }
 
