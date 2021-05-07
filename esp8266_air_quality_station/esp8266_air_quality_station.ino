@@ -12,11 +12,22 @@
 #include <DHT.h>
 #include <ESP8266HTTPClient.h>
 #include <WiFiClientSecureBearSSL.h>
-#include <SdsDustSensor.h>
 #include <NTPClient.h>
 #include <WiFiUdp.h>
 #include "src/LinkedList.h"
 #include "src/Sensors.h"
+
+#ifndef DEMO_MODE
+    #define DEMO_MODE 0
+#endif
+
+#if DEMO_MODE == 1
+    #include "src/Demo.h"
+#else
+    #include <SdsDustSensor.h>
+#endif
+
+
 /*****************************NTP TIME*******************************************/
 #define NTP_OFFSET   60 * 60      // In seconds
 #define NTP_INTERVAL 60 * 60 * 1000    // In miliseconds
@@ -133,17 +144,17 @@ DHT tempSensor = DHT(DHT_PIN, DHT11);
 #define TEMP_SENSOR_READ_INTERVAL 5 * 60000; // 5m
 volatile unsigned long nextTempReadAt = 0;
 
-void readTemperatureSensor()
-{
-    if (nextTempReadAt < millis()) {
-        sensors.temp = tempSensor.readTemperature();
-        sensors.humidity = tempSensor.readHumidity();
+// void readTemperatureSensor()
+// {
+//     if (nextTempReadAt < millis()) {
+//         sensors.temp = tempSensor.readTemperature();
+//         sensors.humidity = tempSensor.readHumidity();
         
-        debugV("Read T: %.2f, H: %.2f", sensors.temp, sensors.humidity);
+//         debugV("Read T: %.2f, H: %.2f", sensors.temp, sensors.humidity);
 
-        nextTempReadAt = millis() + TEMP_SENSOR_READ_INTERVAL;
-    }
-}
+//         nextTempReadAt = millis() + TEMP_SENSOR_READ_INTERVAL;
+//     }
+// }
 
 /*****************************AIR QUALITY SENSOR - SDS011*********************/
 #define RX_PIN 12 // D6
@@ -163,9 +174,10 @@ void setupAirQualitySensor()
 
 volatile unsigned long wakeUpAt = 0;
 volatile unsigned long nextReadAt = 0;
+volatile unsigned long nextMeasureAt = 0;
 volatile unsigned int readAttempts = 5;
 
-#define SDS_SENSOR_READ_INTERVAL 5 * 60000; // 5m
+#define SDS_SENSOR_READ_INTERVAL 1 * 60000; // 1m
 
 bool readAirQualitySensor(Sensors *sensors)
 {
@@ -173,7 +185,7 @@ bool readAirQualitySensor(Sensors *sensors)
         debugV("Wakeup sensor");
         sdsSensor.wakeup();
         wakeUpAt = millis() + SDS_SENSOR_READ_INTERVAL;
-        nextReadAt = millis() + 30*1000; // 30s
+        nextReadAt = nextMeasureAt = millis() + 30*1000; // 30s
     }
 
     if (nextReadAt && nextReadAt < millis()) {
@@ -413,6 +425,12 @@ void handleWebSocketMessage(
             createInfoEventMessage(infoMessagePayload, "settings.saved");
             client->text(infoMessagePayload);
         }
+
+        if (strcmp(event, "measure-aiq") == 0) {
+            if (! nextReadAt) {
+                wakeUpAt = millis();
+            }
+        }
     }
 }
 
@@ -467,7 +485,7 @@ void createConfigEventMessage(char *destination)
 
 void createSensorsEventMessage(char *destination, Sensors data)
 {
-    char msgTemplate[] = R"===({"event":"sensors", "data":{ "at":%d,"aqi":%d,"pm10":%.2f,"pm25":%.2f,"temp":"%.2f","switch_state":%d }})===";
+    char msgTemplate[] = R"===({"event":"sensors", "data":{ "at":%d,"aqi":%d,"pm10":%.2f,"pm25":%.2f,"temp":"%.2f", "aiqNextReadMs":%d,"switch_state":%d }})===";
     
     snprintf(
         destination,
@@ -478,6 +496,7 @@ void createSensorsEventMessage(char *destination, Sensors data)
         data.pm10,
         data.pm25,
         data.temp,
+        nextMeasureAt ? nextMeasureAt - millis() : 0,
         shelly.getState() == Switch::ON ? 1 : 0
     );
 }
@@ -550,7 +569,7 @@ volatile unsigned long nextGoogleSheetsUpdateAt = 0;
 
 void sendDataToGoogleSheets()
 {
-    if (nextGoogleSheetsUpdateAt > millis()) {
+    if (DEMO_MODE || nextGoogleSheetsUpdateAt > millis()) {
         return;
     }
 
@@ -606,6 +625,7 @@ void refreshSensors()
         data.at = timeClient.getEpochTime();
         sensorsHistory.addData(data);
         // sensorsHistory.print();
+        notifyClientsWithSensorsDataAt = 0;
     }
 
     if (! sensorsHistory.isEmpty()
