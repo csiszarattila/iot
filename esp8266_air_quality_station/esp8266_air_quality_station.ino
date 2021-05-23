@@ -174,10 +174,11 @@ void setupAirQualitySensor()
 
 volatile unsigned long wakeUpAt = 0;
 volatile unsigned long nextReadAt = 0;
-volatile unsigned long nextMeasureAt = 0;
 volatile unsigned int readAttempts = 5;
+volatile boolean measuring = false;
 
 #define SDS_SENSOR_READ_INTERVAL 1 * 60000; // 1m
+#define SDS_SENSOR_WEAKUP_READ_INTERVAL 30 * 1000 // 30s
 
 bool readAirQualitySensor(Sensors *sensors)
 {
@@ -185,7 +186,8 @@ bool readAirQualitySensor(Sensors *sensors)
         debugV("Wakeup sensor");
         sdsSensor.wakeup();
         wakeUpAt = millis() + SDS_SENSOR_READ_INTERVAL;
-        nextReadAt = nextMeasureAt = millis() + 30*1000; // 30s
+        nextReadAt = millis() + SDS_SENSOR_WEAKUP_READ_INTERVAL;
+        measuring = true;
     }
 
     if (nextReadAt && nextReadAt < millis()) {
@@ -194,6 +196,7 @@ bool readAirQualitySensor(Sensors *sensors)
             readAttempts = 5;
             nextReadAt = 0;
             sdsSensor.sleep();
+            measuring = false;
             return false;
         }
 
@@ -209,6 +212,7 @@ bool readAirQualitySensor(Sensors *sensors)
             sensors->pm25 = result.pm25;
 
             readAttempts = 0;
+            measuring = false;
 
             return true;
         } else {
@@ -403,7 +407,7 @@ void handleWebSocketMessage(
         }
 
         if (strcmp(event, "sensor-status") == 0) {
-            char sensorsPayload[150];
+            char sensorsPayload[200];
             createSensorsEventMessage(sensorsPayload, sensorsHistory.last());
             client->text(sensorsPayload);
         }
@@ -426,9 +430,10 @@ void handleWebSocketMessage(
             client->text(infoMessagePayload);
         }
 
-        if (strcmp(event, "measure-aiq") == 0) {
-            if (! nextReadAt) {
-                wakeUpAt = millis();
+        if (strcmp(event, "measure-aqi") == 0) {
+            if (! measuring) {
+                wakeUpAt = 0;
+                measuring = true;
             }
         }
     }
@@ -451,7 +456,7 @@ void onWebsocketEvent(
         client->text(configPayload);
         
         for (int idx = 0; idx < sensorsHistory.items.size(); idx++) {
-            char sensorsPayload[150];
+            char sensorsPayload[200];
             createSensorsEventMessage(sensorsPayload, sensorsHistory.items.get(idx));
             client->text(sensorsPayload);
         }
@@ -485,18 +490,19 @@ void createConfigEventMessage(char *destination)
 
 void createSensorsEventMessage(char *destination, Sensors data)
 {
-    char msgTemplate[] = R"===({"event":"sensors", "data":{ "at":%d,"aqi":%d,"pm10":%.2f,"pm25":%.2f,"temp":"%.2f", "aiqNextReadMs":%d,"switch_state":%d }})===";
+    char msgTemplate[] = R"===({"event":"sensors", "data":{ "at":%d,"aqi":%d,"pm10":%.2f,"pm25":%.2f,"temp":"%.2f","aqiNextRead":%d,"aqiNextWakeup":%d,"switch_state":%d }})===";
     
     snprintf(
         destination,
-        150,
+        200,
         msgTemplate,
         data.at,
         data.aqi(),
         data.pm10,
         data.pm25,
         data.temp,
-        nextMeasureAt ? nextMeasureAt - millis() : 0,
+        measuring ? nextReadAt - millis() : SDS_SENSOR_WEAKUP_READ_INTERVAL,
+        measuring ? 0 : (wakeUpAt - millis()),
         shelly.getState() == Switch::ON ? 1 : 0
     );
 }
@@ -520,7 +526,7 @@ void notifyClientsWithError(char *code)
 
 void notifyClientsWithSensorsData(Sensors data)
 {
-    char sensorsPayload[150];
+    char sensorsPayload[200];
 
     createSensorsEventMessage(sensorsPayload, data);
 

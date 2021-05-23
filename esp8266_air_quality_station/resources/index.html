@@ -5,7 +5,7 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta1/dist/js/bootstrap.bundle.min.js" integrity="sha384-ygbV9kiqUc6oa4msXn9868pTtWMgiQaeYH7/t7LECLbyPA2x65Kgf80OJFdroafW" crossorigin="anonymous"></script>
     <script src="https://kit.fontawesome.com/0a9c0ea9bb.js" crossorigin="anonymous"></script>
     <script src="/alpine.js" crossorigin="anonymous"></script>
-    <title>CO2 Szenzor</title>
+    <title>Levegőminőség Szenzor</title>
 </head>
 <body>
     <div class="container">
@@ -29,8 +29,8 @@
                     class="card text-dark bg-light text-center h-100"
                     :class="{'border-danger': error}"
                     style="max-width: 15rem;"
-                    x-data="{ aqi: 0, pm25: 0, pm10: 0, error: false }"
-                    @sensors-update.window="aqi = $event.detail.aqi, pm10 = $event.detail.pm10, pm25 = $event.detail.pm25"
+                    x-data="window.aqiSensor()"
+                    x-init="init()"
                     @aqs-error.window="error = true"
                 >
                     <h4 class="card-header"><i class="fas fa-smog"></i> LM Index</h4>
@@ -49,6 +49,27 @@
                             </p>
                         </div>
                         <small><a href="https://en.wikipedia.org/wiki/Air_quality_index#CAQI" target="_blank">skála</a></small>
+                        <div class="mt-2">
+                            <button
+                                type="submit"
+                                class="btn btn-primary"
+                                :disabled="measuring"
+                                @click.prevent="measureNow()"
+                            >
+                                <span
+                                    class="spinner-border spinner-border-sm"
+                                    role="status"
+                                    aria-hidden="true"
+                                    x-show="measuring"
+                                ></span>
+                                <span x-text="(measuring ? 'Mérés...' : 'Mérés most')"></span>
+                                <span x-show="measuring" x-text="aqiNextRead"></span>
+                            </button>
+                        </div>
+                        <div class="mt-2" x-show="!measuring">
+                            <strong>Következő mérés:</strong>
+                            <span x-text="window.humanizeSeconds(aqiNextWakeup)"></span>
+                        </div>
                     </div>
                 </div>
             </div>

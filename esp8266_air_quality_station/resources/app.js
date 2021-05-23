@@ -26,6 +26,7 @@ window.settings = function settings() {
         ppm_limit: 0,
         shelly_ip: "192.168.0.1",
         auto_switch_enabled: true,
+        measuring_minutes: 1,
         init () {
             window.addEventListener('config-update', (event) => {
                 this.ppm_limit = event.detail.ppm_limit;
@@ -46,6 +47,77 @@ window.settings = function settings() {
 
             socket.send(JSON.stringify(message))
         }
+    }
+}
+
+window.aqiSensor = function aqiSensor() {
+    return {
+        measuring: false,
+        aqi: 0,
+        pm25: 0,
+        pm10: 0,
+        error: false,
+        aqiNextWakeup: 0,
+        aqiNextRead: 0,
+        nextReadCounter: null,
+        nextWakeupCounter: null,
+        init () {
+            window.addEventListener('sensors-update', (event) => {
+                this.aqi = event.detail.aqi;
+                this.pm25 = event.detail.pm25;
+                this.pm10 = event.detail.pm10;
+                this.aqiNextWakeup = Math.ceil(event.detail.aqiNextWakeup / 1000);
+                this.aqiNextRead = Math.ceil(event.detail.aqiNextRead / 1000);
+                this.measuring = this.aqiNextWeakup <= 0;
+                
+                if (this.nextWakeupCounter) {
+                    clearInterval(this.nextWakeupCounter);
+                }      
+                if (this.nextReadCounter) {
+                    clearInterval(this.nextReadCounter);
+                }
+
+                this.measuring ? this.countdownToNextRead() : this.countdownToNextWakeup()
+            })
+
+            this.$watch("measuring", value => {
+                this.measuring ? this.countdownToNextRead() : this.countdownToNextWakeup()
+            })
+        },
+        measureNow () {
+            socket.send(JSON.stringify({
+                "event": "measure-aqi"
+            }))
+
+            this.measuring = true;
+        },
+        countdownToNextRead () {
+            if (this.nextWakeupCounter) {
+                clearInterval(this.nextWakeupCounter);
+            }
+
+            this.nextReadCounter = setInterval(() => {
+                this.aqiNextRead--;
+
+                if (this.aqiNextRead <= 0) {
+                    clearInterval(this.nextReadCounter)
+                }
+            }, 1000)
+        },
+        countdownToNextWakeup () {      
+            if (this.nextReadCounter) {
+                clearInterval(this.nextReadCounter);
+            }
+
+            this.nextWakeupCounter = setInterval(() => {
+                this.aqiNextWakeup--;
+
+                if (this.aqiNextWakeup <= 0) {
+                    this.measuring = true;
+                    clearInterval(this.nextWakeupCounter)
+                }
+            }, 1000)
+        },
     }
 }
 
@@ -141,6 +213,15 @@ window.formatUnixTimestamp = function (unixTimestamp) {
     });
 
     return t.format(new Date(unixTimestamp*1000));
+}
+
+window.humanizeSeconds = function (seconds) {
+    seconds = seconds * 1000;
+
+    if (seconds > (60 * 60 * 1000)) {
+        return new Date(seconds).toISOString().slice(11, -5); // 00:00:00
+    }
+    return new Date(seconds).toISOString().slice(14, -5); // 00:00
 }
 
 window.bg = {

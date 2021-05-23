@@ -21,7 +21,9 @@ var wsServer = new WebSocketServer({
 var fakeData = function () {
     return {
         sensors: {
-            ppm: Math.floor(Math.random() * (5000 - 1000) + 1000),
+            at: Date().getTimestamp(),
+            pm10: Math.floor(Math.random() * (200 - 10) + 10),
+            pm25: Math.floor(Math.random() * (200 - 10) + 10),
         },
         shelly: {
             on: true,
