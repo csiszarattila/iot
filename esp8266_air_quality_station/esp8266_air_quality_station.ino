@@ -48,7 +48,10 @@ struct Config {
     char shelly_ip[40];
     char mdns_hostname[50] = "LMSzenzor";
     bool auto_switch_enabled = true;
+    int measuring_frequency = 1;
 };
+
+#define NUMBER_OF_CONFIG_ITEMS 8
 
 Config config;
 const char *configFilename = "/config.json";
@@ -61,7 +64,7 @@ void loadConfiguration(const char *filename, Config &config)
         // return;
     }
 
-    const size_t capacity = JSON_OBJECT_SIZE(2) + 40;
+    const size_t capacity = JSON_OBJECT_SIZE(NUMBER_OF_CONFIG_ITEMS) + 40;
     DynamicJsonDocument json(capacity);
 
     DeserializationError error = deserializeJson(json, configFile);
@@ -78,6 +81,7 @@ void loadConfiguration(const char *filename, Config &config)
     );
 
     config.auto_switch_enabled = json["auto_switch_enabled"] | true;
+    config.measuring_frequency = json["measuring_frequency"] | 1;
 
     configFile.close();
 }
@@ -92,12 +96,13 @@ void saveConfiguration(const char *filename, const Config &config)
         return;
     }
 
-    const size_t capacity = JSON_OBJECT_SIZE(2);
+    const size_t capacity = JSON_OBJECT_SIZE(NUMBER_OF_CONFIG_ITEMS);
     DynamicJsonDocument json(capacity);
 
     json["shelly_ip"] = config.shelly_ip;
     json["ppm_limit"] = config.ppm_limit;
     json["auto_switch_enabled"] = config.auto_switch_enabled;
+    json["measuring_frequency"] = config.measuring_frequency;
 
     if (serializeJson(json, configFile) == 0) {
         debugE("Failed to write config to file.");
@@ -176,16 +181,21 @@ volatile unsigned long wakeUpAt = 0;
 volatile unsigned long nextReadAt = 0;
 volatile unsigned int readAttempts = 5;
 volatile boolean measuring = false;
+volatile boolean forceStartMeasuring = false;
 
-#define SDS_SENSOR_READ_INTERVAL 1 * 60000; // 1m
 #define SDS_SENSOR_WEAKUP_READ_INTERVAL 30 * 1000 // 30s
 
 bool readAirQualitySensor(Sensors *sensors)
-{
+{            
+    if (forceStartMeasuring && ! measuring) {
+        wakeUpAt = 0;
+        forceStartMeasuring = false;
+    }
+
     if (wakeUpAt < millis()) {
         debugV("Wakeup sensor");
         sdsSensor.wakeup();
-        wakeUpAt = millis() + SDS_SENSOR_READ_INTERVAL;
+        wakeUpAt = millis() + config.measuring_frequency * 60000; // x minute
         nextReadAt = millis() + SDS_SENSOR_WEAKUP_READ_INTERVAL;
         measuring = true;
     }
@@ -413,6 +423,10 @@ void handleWebSocketMessage(
         }
 
         if (strcmp(event, "save-settings") == 0) {
+            if (config.measuring_frequency != payload["data"]["measuring_frequency"]) {
+                forceStartMeasuring = true;
+            }
+
             config.ppm_limit = payload["data"]["ppm_limit"];
             
             strlcpy(
@@ -422,6 +436,7 @@ void handleWebSocketMessage(
             );
             
             config.auto_switch_enabled = payload["data"]["auto_switch_enabled"];
+            config.measuring_frequency = payload["data"]["measuring_frequency"];
 
             saveConfiguration(configFilename, config);
 
@@ -431,10 +446,7 @@ void handleWebSocketMessage(
         }
 
         if (strcmp(event, "measure-aqi") == 0) {
-            if (! measuring) {
-                wakeUpAt = 0;
-                measuring = true;
-            }
+            forceStartMeasuring = true;
         }
     }
 }
@@ -451,7 +463,7 @@ void onWebsocketEvent(
       case WS_EVT_CONNECT:
         debugV("WebSocket client #%u connected from %s\n", client->id(), client->remoteIP().toString().c_str());
         
-        char configPayload[150];
+        char configPayload[200];
         createConfigEventMessage(configPayload);
         client->text(configPayload);
         
@@ -476,15 +488,16 @@ void onWebsocketEvent(
 
 void createConfigEventMessage(char *destination)
 {
-    char msgTemplate[] = R"===({"event":"config", "data":{ "shelly_ip":"%s", "ppm_limit":"%d", "auto_switch_enabled": %s}})===";
+    char msgTemplate[] = R"===({"event":"config", "data":{ "shelly_ip":"%s", "ppm_limit":"%d", "auto_switch_enabled": %s, "measuring_frequency": %d}})===";
     
     snprintf(
         destination,
-        150,
+        200,
         msgTemplate,
         config.shelly_ip,
         config.ppm_limit,
-        config.auto_switch_enabled ? "true" : "false"
+        config.auto_switch_enabled ? "true" : "false",
+        config.measuring_frequency
     );
 }
 
@@ -559,6 +572,11 @@ void setupHttpServer()
     httpServer.on("/app.css", HTTP_GET, [](AsyncWebServerRequest *request) {
         AsyncWebServerResponse *response = request->beginResponse(LittleFS, "/app.css.gz", "text/css");
         response->addHeader("Content-Encoding","gzip");
+        request->send(response);
+    });
+      
+    httpServer.on("/config.json", HTTP_GET, [](AsyncWebServerRequest *request) {
+        AsyncWebServerResponse *response = request->beginResponse(LittleFS, "/config.json", "application/json");
         request->send(response);
     });
 
