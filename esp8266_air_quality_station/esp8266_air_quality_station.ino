@@ -49,9 +49,10 @@ struct Config {
     char mdns_hostname[50] = "LMSzenzor";
     bool auto_switch_enabled = true;
     int measuring_frequency = 1;
+    int switch_back_time = 30;
 };
 
-#define NUMBER_OF_CONFIG_ITEMS 8
+#define NUMBER_OF_CONFIG_ITEMS 9
 
 Config config;
 const char *configFilename = "/config.json";
@@ -82,6 +83,7 @@ void loadConfiguration(const char *filename, Config &config)
 
     config.auto_switch_enabled = json["auto_switch_enabled"] | true;
     config.measuring_frequency = json["measuring_frequency"] | 1;
+    config.switch_back_time = json["switch_back_time"] | 30;
 
     configFile.close();
 }
@@ -103,6 +105,7 @@ void saveConfiguration(const char *filename, const Config &config)
     json["ppm_limit"] = config.ppm_limit;
     json["auto_switch_enabled"] = config.auto_switch_enabled;
     json["measuring_frequency"] = config.measuring_frequency;
+    json["switch_back_time"] = config.switch_back_time;
 
     if (serializeJson(json, configFile) == 0) {
         debugE("Failed to write config to file.");
@@ -361,7 +364,7 @@ class Switch
 
                 if (last.aqi() >= config.ppm_limit) {
                     turnOff();
-                    _nextAutoSwitchTime = millis() + 60*60*1000; // 1h
+                    _nextAutoSwitchTime = millis() + config.switch_back_time * 60 * 1000; // switch_back_time x minutes
                 } else {
                     turnOn();
                     _nextAutoSwitchTime = millis() + 60*1000; // 1m
@@ -437,6 +440,7 @@ void handleWebSocketMessage(
             
             config.auto_switch_enabled = payload["data"]["auto_switch_enabled"];
             config.measuring_frequency = payload["data"]["measuring_frequency"];
+            config.switch_back_time = payload["data"]["switch_back_time"];
 
             saveConfiguration(configFilename, config);
 
@@ -488,7 +492,7 @@ void onWebsocketEvent(
 
 void createConfigEventMessage(char *destination)
 {
-    char msgTemplate[] = R"===({"event":"config", "data":{ "shelly_ip":"%s", "ppm_limit":"%d", "auto_switch_enabled": %s, "measuring_frequency": %d}})===";
+    char msgTemplate[] = R"===({"event":"config", "data":{ "shelly_ip":"%s", "ppm_limit":"%d", "auto_switch_enabled": %s, "measuring_frequency": %d, "switch_back_time": %d}})===";
     
     snprintf(
         destination,
@@ -497,7 +501,8 @@ void createConfigEventMessage(char *destination)
         config.shelly_ip,
         config.ppm_limit,
         config.auto_switch_enabled ? "true" : "false",
-        config.measuring_frequency
+        config.measuring_frequency,
+        config.switch_back_time
     );
 }
 

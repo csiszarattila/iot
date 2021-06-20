@@ -175,6 +175,11 @@
                                 <input type="range" class="form-range" min="0" max="100" step="1" name="ppm_limit" x-model="ppm_limit">
                             </div>
                             <div class="mb-3">
+                                <label for="switch_back_time" class="form-label">Lekapcsolás utáni legkorábbi visszakapcsolás (perc):</label>
+                                <strong x-text="switch_back_time"></strong>
+                                <input type="range" class="form-range" min="0" max="120" step="1" name="switch_back_time" x-model="switch_back_time">
+                            </div>
+                            <div class="mb-3">
                                 <label for="shelly_ip" class="form-label">Shelly kapcsoló ip címe:</label>
                                 <input type="text" class="form-control" name="shelly_ip" x-model="shelly_ip">
                             </div>

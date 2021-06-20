@@ -27,12 +27,14 @@ window.settings = function settings() {
         shelly_ip: "192.168.0.1",
         auto_switch_enabled: true,
         measuring_frequency: 1,
+        switch_back_time: 30,
         init () {
             window.addEventListener('config-update', (event) => {
                 this.ppm_limit = event.detail.ppm_limit;
                 this.shelly_ip = event.detail.shelly_ip;
                 this.auto_switch_enabled = event.detail.auto_switch_enabled;
                 this.measuring_frequency = event.detail.measuring_frequency;
+                this.switch_back_time = event.detail.switch_back_time
             })
         },
         save () {
@@ -44,6 +46,7 @@ window.settings = function settings() {
                     "shelly_ip": this.shelly_ip,
                     "auto_switch_enabled": this.auto_switch_enabled,
                     "measuring_frequency": this.measuring_frequency,
+                    "switch_back_time": this.switch_back_time,
                 }
             }
 
