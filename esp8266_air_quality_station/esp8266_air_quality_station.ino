@@ -185,14 +185,24 @@ volatile unsigned long nextReadAt = 0;
 volatile unsigned int readAttempts = 5;
 volatile boolean measuring = false;
 volatile boolean forceStartMeasuring = false;
+volatile boolean progressiveMeasuring = false;
 
 #define SDS_SENSOR_WEAKUP_READ_INTERVAL 30 * 1000 // 30s
 
 bool readAirQualitySensor(Sensors *sensors)
 {            
-    if (forceStartMeasuring && ! measuring) {
-        wakeUpAt = 0;
+    if (forceStartMeasuring) {
+        if (! measuring) {
+            wakeUpAt = 0;
+        }
         forceStartMeasuring = false;
+    }
+
+    if (progressiveMeasuring) {
+        if (! measuring) {
+            wakeUpAt = millis() + 30000; // 30 sec
+        }
+        progressiveMeasuring = false;
     }
 
     if (wakeUpAt < millis()) {
@@ -347,28 +357,33 @@ class Switch
             }
         }
 
-        void handleAutoSwitch()
+        void handleAutoSwitch(Sensors* data)
         {
             if (! config.auto_switch_enabled) {
                 return;
             }
 
+            if (_nextAutoSwitchTime > millis()) {
+                data->switch_ai_decision = WAITING;
+                return;
+            }
+
              _changeStateNextTime = false;
+            progressiveMeasuring = false;
+            _nextAutoSwitchTime = 0;
 
-            if (_nextAutoSwitchTime < millis()) {
-                if (sensorsHistory.items.size() <= 0) {
-                    return;
-                }
-
-                Sensors last = sensorsHistory.last();
-
-                if (last.aqi() >= config.ppm_limit) {
-                    turnOff();
-                    _nextAutoSwitchTime = millis() + config.switch_back_time * 60 * 1000; // switch_back_time x minutes
-                } else {
-                    turnOn();
-                    _nextAutoSwitchTime = millis() + 60*1000; // 1m
-                }
+            float limitPlusTenPercent = config.ppm_limit + (config.ppm_limit * 0.1);
+            
+            if (data->aqi() >= limitPlusTenPercent) { // limit + 10% felett
+                data->switch_ai_decision = SWITCH_OFF;
+                turnOff();
+                _nextAutoSwitchTime = millis() + config.switch_back_time * 60 * 1000; // switch_back_time x minutes
+            } else if (data->aqi() >= config.ppm_limit) { // limit és limit+10% kozott
+                progressiveMeasuring = true;
+                data->switch_ai_decision = PROGRESSIVE_MEASURE;
+            } else {
+                turnOn();
+                data->switch_ai_decision = SWITCH_ON;
             }
         }
 
@@ -585,6 +600,12 @@ void setupHttpServer()
         request->send(response);
     });
 
+    httpServer.on("/sensors.csv", HTTP_GET, [](AsyncWebServerRequest *request) {
+        AsyncResponseStream *response = request->beginResponseStream("text/plain");
+        sensorsHistory.printToResponse(response);
+        request->send(response);
+    });
+
     webSocketServer.onEvent(onWebsocketEvent);
 
     httpServer.addHandler(&webSocketServer);
@@ -652,6 +673,7 @@ void refreshSensors()
 
     if (readAirQualitySensor(&data)) {
         data.at = timeClient.getEpochTime();
+        shelly.handleAutoSwitch(&data);
         sensorsHistory.addData(data);
         // sensorsHistory.print();
         notifyClientsWithSensorsDataAt = 0;
@@ -702,8 +724,6 @@ void loop() {
     timeClient.update();
 
     refreshSensors();
-
-    shelly.handleAutoSwitch();
 
     shelly.handleStateSwitch();
     
