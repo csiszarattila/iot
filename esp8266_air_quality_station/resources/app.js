@@ -1,4 +1,5 @@
 import './app.scss';
+import 'bootstrap/dist/js/bootstrap'
 
 window._ = require('underscore')
 
