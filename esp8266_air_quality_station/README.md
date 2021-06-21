@@ -9,6 +9,7 @@
     arduino-cli lib install RemoteDebug
     arduino-cli lib install "DHT sensor library"
     arduino-cli lib install "Nova Fitness Sds dust sensors library"
+    arduino-cli lib install AsyncElegantOTA
 
 Some libraries require manual install
 

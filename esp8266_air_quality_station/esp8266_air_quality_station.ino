@@ -14,6 +14,7 @@
 #include <WiFiClientSecureBearSSL.h>
 #include <NTPClient.h>
 #include <WiFiUdp.h>
+#include <AsyncElegantOTA.h>
 #include "src/LinkedList.h"
 #include "src/Sensors.h"
 
@@ -642,6 +643,8 @@ void setupHttpServer()
     webSocketServer.onEvent(onWebsocketEvent);
 
     httpServer.addHandler(&webSocketServer);
+
+    AsyncElegantOTA.begin(&httpServer);
 
     httpServer.begin();
 }
