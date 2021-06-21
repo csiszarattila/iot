@@ -29,6 +29,7 @@ window.settings = function settings() {
         auto_switch_enabled: true,
         measuring_frequency: 1,
         switch_back_time: 30,
+        version: '-',
         restarting: false,
         saving: false,
         init () {
@@ -37,7 +38,8 @@ window.settings = function settings() {
                 this.shelly_ip = event.detail.shelly_ip;
                 this.auto_switch_enabled = event.detail.auto_switch_enabled;
                 this.measuring_frequency = event.detail.measuring_frequency;
-                this.switch_back_time = event.detail.switch_back_time
+                this.switch_back_time = event.detail.switch_back_time;
+                this.version = event.detail.version;
             })
 
             window.addEventListener('settings-saved', (event) => {

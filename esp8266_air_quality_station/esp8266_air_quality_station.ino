@@ -27,6 +27,7 @@
     #include <SdsDustSensor.h>
 #endif
 
+#define VERSION "v1.1"
 
 /*****************************NTP TIME*******************************************/
 #define NTP_OFFSET   60 * 60      // In seconds
@@ -510,7 +511,7 @@ void onWebsocketEvent(
 
 void createConfigEventMessage(char *destination)
 {
-    char msgTemplate[] = R"===({"event":"config", "data":{ "shelly_ip":"%s", "ppm_limit":"%d", "auto_switch_enabled": %s, "measuring_frequency": %d, "switch_back_time": %d}})===";
+    char msgTemplate[] = R"===({"event":"config", "data":{ "shelly_ip":"%s", "ppm_limit":"%d", "auto_switch_enabled": %s, "measuring_frequency": %d, "switch_back_time": %d, "version": "%s"}})===";
     
     snprintf(
         destination,
@@ -520,7 +521,8 @@ void createConfigEventMessage(char *destination)
         config.ppm_limit,
         config.auto_switch_enabled ? "true" : "false",
         config.measuring_frequency,
-        config.switch_back_time
+        config.switch_back_time,
+        VERSION
     );
 }
 
