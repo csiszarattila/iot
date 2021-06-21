@@ -29,6 +29,7 @@ window.settings = function settings() {
         auto_switch_enabled: true,
         measuring_frequency: 1,
         switch_back_time: 30,
+        restarting: false,
         init () {
             window.addEventListener('config-update', (event) => {
                 this.ppm_limit = event.detail.ppm_limit;
@@ -52,6 +53,15 @@ window.settings = function settings() {
             }
 
             socket.send(JSON.stringify(message))
+        },
+        restart () {
+            this.restarting = true;
+
+            socket.send(JSON.stringify({
+                "event": "restart"
+            }))
+
+            setInterval(() => window.location.reload(), 2000);
         }
     }
 }

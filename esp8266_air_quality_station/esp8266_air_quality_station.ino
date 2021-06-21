@@ -462,6 +462,10 @@ void handleWebSocketMessage(
         if (strcmp(event, "measure-aqi") == 0) {
             forceStartMeasuring = true;
         }
+
+        if (strcmp(event, "restart") == 0) {
+           ESP.restart();
+        }
     }
 }
 

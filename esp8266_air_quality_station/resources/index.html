@@ -187,6 +187,15 @@
                                 <input type="text" class="form-control" name="shelly_ip" x-model="shelly_ip">
                             </div>
                             <button type="submit" class="btn btn-primary" @click.prevent="save()">Beállítások mentése</button>
+                            <button type="submit" class="btn btn-danger" :disabled="restarting" @click.prevent="restart()">
+                                <span
+                                    class="spinner-border spinner-border-sm"
+                                    role="status"
+                                    aria-hidden="true"
+                                    x-show="restarting"
+                                ></span>
+                                Újraindítás
+                            </button>
                         </form>
                     </div>
                 </div>
