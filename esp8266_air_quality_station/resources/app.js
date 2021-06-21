@@ -72,22 +72,28 @@ window.aqiSensor = function aqiSensor() {
                 this.aqi = event.detail.aqi;
                 this.pm25 = event.detail.pm25;
                 this.pm10 = event.detail.pm10;
-                this.aqiNextWakeup = Math.ceil(event.detail.aqiNextWakeup / 1000);
-                this.aqiNextRead = Math.ceil(event.detail.aqiNextRead / 1000);
-                this.measuring = this.aqiNextWeakup <= 0;
-                
-                if (this.nextWakeupCounter) {
-                    clearInterval(this.nextWakeupCounter);
-                }      
-                if (this.nextReadCounter) {
-                    clearInterval(this.nextReadCounter);
-                }
-
-                this.measuring ? this.countdownToNextRead() : this.countdownToNextWakeup()
             })
 
-            this.$watch("measuring", value => {
-                this.measuring ? this.countdownToNextRead() : this.countdownToNextWakeup()
+            window.addEventListener('measuring', (event) => {
+                this.measuring = true;
+                this.aqiNextRead = Math.ceil(event.detail.nextReadAt / 1000);
+                
+                if (this.nextReadCounter) {
+                    clearInterval(this.nextReadCounter)
+                }
+                
+                this.countdownToNextRead();
+            })
+
+            window.addEventListener('sleeping', (event) => {
+                this.measuring = false;
+                this.aqiNextWakeup = Math.ceil(event.detail.nextWakeupAt / 1000);
+
+                if (this.nextWakeupCounter) {
+                    clearInterval(this.nextWakeupCounter)
+                }
+
+                this.countdownToNextWakeup();
             })
         },
         measureNow () {
@@ -119,11 +125,14 @@ window.aqiSensor = function aqiSensor() {
                 this.aqiNextWakeup--;
 
                 if (this.aqiNextWakeup <= 0) {
-                    this.measuring = true;
                     clearInterval(this.nextWakeupCounter)
                 }
             }, 1000)
         },
+        isWaitingForUpdate() {
+            return (this.measuring && this.aqiNextRead <= 0)
+                || (!this.measuring && this.aqiNextWakeup <= 0)
+        }
     }
 }
 
@@ -168,6 +177,12 @@ socket.onmessage = function (message) {
             break;
         case "config":
             window.dispatchEvent(new CustomEvent('config-update', {detail: payload.data}));
+            break;
+        case "measuring":
+            window.dispatchEvent(new CustomEvent('measuring', {detail: payload.data}));
+            break;
+        case "sleeping":
+            window.dispatchEvent(new CustomEvent('sleeping', {detail: payload.data}));
             break;
         case "info":
             switch (payload.data.code) {

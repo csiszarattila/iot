@@ -51,7 +51,8 @@
                         <div class="mt-2">
                             <button
                                 type="submit"
-                                class="btn btn-primary"
+                                class="btn"
+                                :class="{ 'btn-primary' : !isWaitingForUpdate(), 'btn-secondary' : isWaitingForUpdate() }"
                                 :disabled="measuring"
                                 @click.prevent="measureNow()"
                             >
@@ -62,12 +63,15 @@
                                     x-show="measuring"
                                 ></span>
                                 <span x-text="(measuring ? 'Mérés...' : 'Mérés most')"></span>
-                                <span x-show="measuring" x-text="aqiNextRead"></span>
+                                <span x-show="measuring && aqiNextRead" x-text="aqiNextRead"></span>
                             </button>
                         </div>
-                        <div class="mt-2" x-show="!measuring">
+                        <div class="mt-2" x-show="!isWaitingForUpdate() && !measuring">
                             <strong>Következő mérés:</strong>
                             <span x-text="window.humanizeSeconds(aqiNextWakeup)"></span>
+                        </div>
+                        <div class="mt-2" x-show="isWaitingForUpdate()">
+                            <strong>Várakozás frissítésre</strong>
                         </div>
                     </div>
                 </div>

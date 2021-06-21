@@ -185,7 +185,6 @@ volatile unsigned long nextReadAt = 0;
 volatile unsigned int readAttempts = 5;
 volatile boolean measuring = false;
 volatile boolean forceStartMeasuring = false;
-volatile boolean progressiveMeasuring = false;
 
 #define SDS_SENSOR_WEAKUP_READ_INTERVAL 30 * 1000 // 30s
 
@@ -198,19 +197,14 @@ bool readAirQualitySensor(Sensors *sensors)
         forceStartMeasuring = false;
     }
 
-    if (progressiveMeasuring) {
-        if (! measuring) {
-            wakeUpAt = millis() + 30000; // 30 sec
-        }
-        progressiveMeasuring = false;
-    }
-
     if (wakeUpAt < millis()) {
         debugV("Wakeup sensor");
         sdsSensor.wakeup();
         wakeUpAt = millis() + config.measuring_frequency * 60000; // x minute
         nextReadAt = millis() + SDS_SENSOR_WEAKUP_READ_INTERVAL;
         measuring = true;
+
+        notifyClientsThatMeasuringStarted();
     }
 
     if (nextReadAt && nextReadAt < millis()) {
@@ -369,7 +363,6 @@ class Switch
             }
 
              _changeStateNextTime = false;
-            progressiveMeasuring = false;
             _nextAutoSwitchTime = 0;
 
             float limitPlusTenPercent = config.ppm_limit + (config.ppm_limit * 0.1);
@@ -379,7 +372,9 @@ class Switch
                 turnOff();
                 _nextAutoSwitchTime = millis() + config.switch_back_time * 60 * 1000; // switch_back_time x minutes
             } else if (data->aqi() >= config.ppm_limit) { // limit és limit+10% kozott
-                progressiveMeasuring = true;
+                if (! measuring) {
+                    wakeUpAt = millis() + 30000;
+                }
                 data->switch_ai_decision = PROGRESSIVE_MEASURE;
             } else {
                 turnOn();
@@ -486,6 +481,10 @@ void onWebsocketEvent(
         createConfigEventMessage(configPayload);
         client->text(configPayload);
         
+        measuring
+            ? notifyClientsThatMeasuringStarted()
+            : notifyClientsAboutNextWakeUp();
+
         for (int idx = 0; idx < sensorsHistory.items.size(); idx++) {
             char sensorsPayload[200];
             createSensorsEventMessage(sensorsPayload, sensorsHistory.items.get(idx));
@@ -523,7 +522,7 @@ void createConfigEventMessage(char *destination)
 
 void createSensorsEventMessage(char *destination, Sensors data)
 {
-    char msgTemplate[] = R"===({"event":"sensors", "data":{ "at":%d,"aqi":%d,"pm10":%.2f,"pm25":%.2f,"temp":"%.2f","aqiNextRead":%d,"aqiNextWakeup":%d,"switch_state":%d }})===";
+    char msgTemplate[] = R"===({"event":"sensors", "data":{ "at":%d,"aqi":%d,"pm10":%.2f,"pm25":%.2f,"temp":"%.2f","switch_state":%d }})===";
     
     snprintf(
         destination,
@@ -534,8 +533,6 @@ void createSensorsEventMessage(char *destination, Sensors data)
         data.pm10,
         data.pm25,
         data.temp,
-        measuring ? nextReadAt - millis() : SDS_SENSOR_WEAKUP_READ_INTERVAL,
-        measuring ? 0 : (wakeUpAt - millis()),
         shelly.getState() == Switch::ON ? 1 : 0
     );
 }
@@ -564,6 +561,36 @@ void notifyClientsWithSensorsData(Sensors data)
     createSensorsEventMessage(sensorsPayload, data);
 
     webSocketServer.textAll(sensorsPayload);
+}
+
+void notifyClientsThatMeasuringStarted()
+{
+    char payload[100];
+    char msgTemplate[] = R"===({"event":"measuring","data":{ "nextReadAt":%d }})===";
+    
+    snprintf(
+        payload,
+        100,
+        msgTemplate,
+        nextReadAt - millis()
+    );
+
+    webSocketServer.textAll(payload);
+}
+
+void notifyClientsAboutNextWakeUp()
+{
+    char payload[100];
+    char msgTemplate[] = R"===({"event":"sleeping","data":{ "nextWakeupAt":%d }})===";
+    
+    snprintf(
+        payload,
+        100,
+        msgTemplate,
+        wakeUpAt - millis()
+    );
+
+    webSocketServer.textAll(payload);
 }
 
 /*****************************HTTP SERVER****************************************/
@@ -677,6 +704,8 @@ void refreshSensors()
         sensorsHistory.addData(data);
         // sensorsHistory.print();
         notifyClientsWithSensorsDataAt = 0;
+
+        notifyClientsAboutNextWakeUp();
     }
 
     if (! sensorsHistory.isEmpty()
