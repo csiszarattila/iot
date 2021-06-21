@@ -30,6 +30,7 @@ window.settings = function settings() {
         measuring_frequency: 1,
         switch_back_time: 30,
         restarting: false,
+        saving: false,
         init () {
             window.addEventListener('config-update', (event) => {
                 this.ppm_limit = event.detail.ppm_limit;
@@ -37,6 +38,10 @@ window.settings = function settings() {
                 this.auto_switch_enabled = event.detail.auto_switch_enabled;
                 this.measuring_frequency = event.detail.measuring_frequency;
                 this.switch_back_time = event.detail.switch_back_time
+            })
+
+            window.addEventListener('settings-saved', (event) => {
+                this.saving = false;
             })
         },
         save () {
@@ -51,6 +56,8 @@ window.settings = function settings() {
                     "switch_back_time": this.switch_back_time,
                 }
             }
+
+            this.saving = true;
 
             socket.send(JSON.stringify(message))
         },
@@ -198,6 +205,7 @@ socket.onmessage = function (message) {
             switch (payload.data.code) {
                 case "settings.saved":
                     displayInfo("Beállítások mentve!");
+                    window.dispatchEvent(new CustomEvent('settings-saved'));
                     break;
                 default:
                     displayInfo("Ismeretlen infó üzenet:" + payload.data.code);
