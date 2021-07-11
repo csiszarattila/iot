@@ -17,6 +17,12 @@
 #include <AsyncElegantOTA.h>
 #include "src/LinkedList.h"
 #include "src/Sensors.h"
+/*****************************REMOTEDEBUG****************************************/
+#include <RemoteDebug.h> //https://github.com/JoaoLopesF/RemoteDebug
+RemoteDebug Debug;
+
+// Includes which uses RemoteDebug (debugV, debugE, ...)
+#include "src/Config.h"
 
 #ifndef DEMO_MODE
     #define DEMO_MODE 0
@@ -38,83 +44,10 @@
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP, NTP_ADDRESS, 0, NTP_INTERVAL);
 
-/*****************************REMOTEDEBUG****************************************/
-#include <RemoteDebug.h> //https://github.com/JoaoLopesF/RemoteDebug
-
-RemoteDebug Debug;
 
 /*****************************CONFIG*********************************************/
-
-struct Config {
-    int ppm_limit = 1000;
-    char shelly_ip[40];
-    char mdns_hostname[50] = "LMSzenzor";
-    bool auto_switch_enabled = true;
-    int measuring_frequency = 1;
-    int switch_back_time = 30;
-};
-
-#define NUMBER_OF_CONFIG_ITEMS 9
-
 Config config;
-const char *configFilename = "/config.json";
 
-void loadConfiguration(const char *filename, Config &config)
-{
-    File configFile = LittleFS.open(configFilename, "r");
-    if (!configFile) {
-        debugE("Failed to open config file for reading");
-        // return;
-    }
-
-    const size_t capacity = JSON_OBJECT_SIZE(NUMBER_OF_CONFIG_ITEMS) + 40;
-    DynamicJsonDocument json(capacity);
-
-    DeserializationError error = deserializeJson(json, configFile);
-    if (error) {
-        debugE("Failed to read file, using default configuration. Error: %s", error.c_str());
-    }
-
-    config.ppm_limit = json["ppm_limit"] | 4321;
-    
-    strlcpy(
-        config.shelly_ip,
-        json["shelly_ip"] | "192.168.0.1",
-        sizeof(config.shelly_ip)
-    );
-
-    config.auto_switch_enabled = json["auto_switch_enabled"] | true;
-    config.measuring_frequency = json["measuring_frequency"] | 1;
-    config.switch_back_time = json["switch_back_time"] | 30;
-
-    configFile.close();
-}
-
-void saveConfiguration(const char *filename, const Config &config)
-{
-    debugV("Saving config...");
-
-    File configFile = LittleFS.open(configFilename, "w");
-    if (!configFile) {
-        debugV("Failed to open config file for writing");
-        return;
-    }
-
-    const size_t capacity = JSON_OBJECT_SIZE(NUMBER_OF_CONFIG_ITEMS);
-    DynamicJsonDocument json(capacity);
-
-    json["shelly_ip"] = config.shelly_ip;
-    json["ppm_limit"] = config.ppm_limit;
-    json["auto_switch_enabled"] = config.auto_switch_enabled;
-    json["measuring_frequency"] = config.measuring_frequency;
-    json["switch_back_time"] = config.switch_back_time;
-
-    if (serializeJson(json, configFile) == 0) {
-        debugE("Failed to write config to file.");
-    }
-    
-    configFile.close();
-}
 
 /*****************************WIFI***********************************************/
 WiFiManager wifiManager;
@@ -442,19 +375,8 @@ void handleWebSocketMessage(
                 forceStartMeasuring = true;
             }
 
-            config.ppm_limit = payload["data"]["ppm_limit"];
-            
-            strlcpy(
-                config.shelly_ip,
-                payload["data"]["shelly_ip"],
-                sizeof(config.shelly_ip)
-            );
-            
-            config.auto_switch_enabled = payload["data"]["auto_switch_enabled"];
-            config.measuring_frequency = payload["data"]["measuring_frequency"];
-            config.switch_back_time = payload["data"]["switch_back_time"];
-
-            saveConfiguration(configFilename, config);
+            config.fillFromWebsocketMessage(payload);
+            config.saveToFile();
 
             char infoMessagePayload[100];
             createInfoEventMessage(infoMessagePayload, "settings.saved");
@@ -735,7 +657,7 @@ void setup() {
 
     setupDebug();
 
-    loadConfiguration(configFilename, config);
+    config.loadFromFile();
 
     setupWifiManager();
 
