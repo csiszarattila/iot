@@ -23,6 +23,8 @@ RemoteDebug Debug;
 
 // Includes which uses RemoteDebug (debugV, debugE, ...)
 #include "src/Config.h"
+#include "src/ShellySwitch.h"
+#include "src/WebSocketServer.h"
 
 #ifndef DEMO_MODE
     #define DEMO_MODE 0
@@ -34,7 +36,7 @@ RemoteDebug Debug;
     #include <SdsDustSensor.h>
 #endif
 
-#define VERSION "v1.1"
+WebSocketServer webSocketServer("/ws");
 
 /*****************************NTP TIME*******************************************/
 #define NTP_OFFSET   60 * 60      // In seconds
@@ -47,7 +49,6 @@ NTPClient timeClient(ntpUDP, NTP_ADDRESS, 0, NTP_INTERVAL);
 
 /*****************************CONFIG*********************************************/
 Config config;
-
 
 /*****************************WIFI***********************************************/
 WiFiManager wifiManager;
@@ -139,7 +140,7 @@ bool readAirQualitySensor(Sensors *sensors)
         nextReadAt = millis() + SDS_SENSOR_WEAKUP_READ_INTERVAL;
         measuring = true;
 
-        notifyClientsThatMeasuringStarted();
+        webSocketServer.notifyClientsThatMeasuringStarted(nextReadAt);
     }
 
     if (nextReadAt && nextReadAt < millis()) {
@@ -171,11 +172,11 @@ bool readAirQualitySensor(Sensors *sensors)
             debugV("Air Quality Sensor read error: %s", result.statusToString().c_str());
             
             if (result.status == Status::NotAvailable) {
-                notifyClientsWithError("aqs.notfound");
+                webSocketServer.notifyClientsWithError("aqs.notfound");
             } else {
                 char *errorCode = "aqs.error:";
                 strcat(errorCode, result.statusToString().c_str());
-                notifyClientsWithError(errorCode);
+                webSocketServer.notifyClientsWithError(errorCode);
             }
         }
     }
@@ -183,158 +184,9 @@ bool readAirQualitySensor(Sensors *sensors)
     return false;
 }
 
-/*****************************Shelly Switch***********************************/
-class Switch
-{
-    public:
-        enum RelayState {
-            OFF,
-            ON,
-        };
-
-        void refreshState()
-        {
-            if (_nextRefreshStateTime > millis()) {
-                return;
-            }
-
-            _nextRefreshStateTime = millis() + 15*1000; // 15s
-
-            HTTPClient httpClient;
-
-            // https://arduinojson.org/v6/how-to/use-arduinojson-with-httpclient/
-            // Unfortunately, by using the underlying Stream, we bypass the code that 
-            // handles chunked transfer encoding, so we must switch to HTTP version 1.0.
-            httpClient.useHTTP10(true);
-            httpClient.begin(config.shelly_ip, 80, "/relay/0/");
-            int responseCode = httpClient.GET();
-            
-            if (responseCode < 0) {
-                debugE("Get Switch State Error: %d", responseCode);
-                notifyClientsWithError("shelly.notfound");
-                httpClient.end();
-                return;
-            }
-
-            DynamicJsonDocument jsonBuffer(220);
-            
-            DeserializationError error = deserializeJson(jsonBuffer, httpClient.getStream());
-            if (error) {
-                debugE("Failed to get Shelly Switch state, json deserialize error: %s", error.c_str());
-            }
-
-            bool _isOn = jsonBuffer["ison"] | false;
-
-            debugD("Switch RefreshState result: %d", _isOn);
-
-            state = _isOn ? ON : OFF;
-
-            httpClient.end();
-        }
-
-        void setState(RelayState newState) {
-            HTTPClient httpClient;
-
-            String path("/relay/0?turn=");
-            path.concat(newState == ON ? "on" : "off");
-
-            httpClient.begin(config.shelly_ip, 80, path);
-            int responseCode = httpClient.GET();
-
-            if (responseCode < 0) {
-                debugE("Switch setState Error: %d", responseCode);
-                notifyClientsWithError("shelly.setstate.failed");
-            }
-
-            httpClient.end();
-
-            state = newState;
-        }
-
-        RelayState getState() {
-            return state;
-        }
-
-        void turnOn() {
-            if (state != ON) {
-                setState(ON);
-            }
-        }
-
-        void turnOff() {
-            if (state != OFF) {
-                setState(OFF);
-            }
-        }
-
-        void toggle() {
-            state == ON ? turnOff() : turnOn();
-        }
-
-        // https://github.com/me-no-dev/ESPAsyncWebServer/issues/364
-        void triggerStateSwitch(RelayState state)
-        {
-            _changeStateNextTime = true;
-            _changeStateNextTimeTo = state;
-        }
-
-        void handleStateSwitch()
-        {
-            if (_changeStateNextTime) {
-                setState(_changeStateNextTimeTo);
-                _changeStateNextTime = false;
-            }
-        }
-
-        void handleAutoSwitch(Sensors* data)
-        {
-            if (! config.auto_switch_enabled) {
-                return;
-            }
-
-            if (_nextAutoSwitchTime > millis()) {
-                data->switch_ai_decision = WAITING;
-                return;
-            }
-
-             _changeStateNextTime = false;
-            _nextAutoSwitchTime = 0;
-
-            float limitPlusTenPercent = config.ppm_limit + (config.ppm_limit * 0.1);
-            
-            if (data->aqi() >= limitPlusTenPercent) { // limit + 10% felett
-                data->switch_ai_decision = SWITCH_OFF;
-                turnOff();
-                _nextAutoSwitchTime = millis() + config.switch_back_time * 60 * 1000; // switch_back_time x minutes
-            } else if (data->aqi() >= config.ppm_limit) { // limit és limit+10% kozott
-                if (! measuring) {
-                    wakeUpAt = millis() + 30000;
-                }
-                data->switch_ai_decision = PROGRESSIVE_MEASURE;
-            } else {
-                turnOn();
-                data->switch_ai_decision = SWITCH_ON;
-            }
-        }
-
-    private:
-        RelayState state = OFF;
-
-        bool _changeStateNextTime = false;
-        RelayState _changeStateNextTimeTo = ON;
-
-        int _nextAutoSwitchTime = 0;
-
-        int _nextRefreshStateTime = 0;
-
-        String ip;
-};
-
 Switch shelly;
 
 /*****************************WEBSOCKET SERVER****************************************/
-
-AsyncWebSocket webSocketServer("/ws");
 
 void handleWebSocketMessage(
     AsyncWebSocketClient *client, 
@@ -366,7 +218,7 @@ void handleWebSocketMessage(
 
         if (strcmp(event, "sensor-status") == 0) {
             char sensorsPayload[200];
-            createSensorsEventMessage(sensorsPayload, sensorsHistory.last());
+            WebSocketMessage::createSensorsEventMessage(sensorsPayload, sensorsHistory.last());
             client->text(sensorsPayload);
         }
 
@@ -377,6 +229,8 @@ void handleWebSocketMessage(
 
             config.fillFromWebsocketMessage(payload);
             config.saveToFile();
+
+            shelly.setIP(config.shelly_ip);
 
             char infoMessagePayload[100];
             createInfoEventMessage(infoMessagePayload, "settings.saved");
@@ -406,16 +260,16 @@ void onWebsocketEvent(
         debugV("WebSocket client #%u connected from %s\n", client->id(), client->remoteIP().toString().c_str());
         
         char configPayload[200];
-        createConfigEventMessage(configPayload);
+        WebSocketMessage::createConfigEventMessage(config, configPayload);
         client->text(configPayload);
         
         measuring
-            ? notifyClientsThatMeasuringStarted()
-            : notifyClientsAboutNextWakeUp();
+            ? webSocketServer.notifyClientsThatMeasuringStarted(nextReadAt)
+            : webSocketServer.notifyClientsAboutNextWakeUp(wakeUpAt);
 
         for (int idx = 0; idx < sensorsHistory.items.size(); idx++) {
             char sensorsPayload[200];
-            createSensorsEventMessage(sensorsPayload, sensorsHistory.items.get(idx));
+            WebSocketMessage::createSensorsEventMessage(sensorsPayload, sensorsHistory.items.get(idx));
             client->text(sensorsPayload);
         }
 
@@ -432,94 +286,11 @@ void onWebsocketEvent(
   }
 }
 
-void createConfigEventMessage(char *destination)
-{
-    char msgTemplate[] = R"===({"event":"config", "data":{ "shelly_ip":"%s", "ppm_limit":"%d", "auto_switch_enabled": %s, "measuring_frequency": %d, "switch_back_time": %d, "version": "%s"}})===";
-    
-    snprintf(
-        destination,
-        200,
-        msgTemplate,
-        config.shelly_ip,
-        config.ppm_limit,
-        config.auto_switch_enabled ? "true" : "false",
-        config.measuring_frequency,
-        config.switch_back_time,
-        VERSION
-    );
-}
-
-void createSensorsEventMessage(char *destination, Sensors data)
-{
-    char msgTemplate[] = R"===({"event":"sensors", "data":{ "at":%d,"aqi":%d,"pm10":%.2f,"pm25":%.2f,"temp":"%.2f","switch_state":%d }})===";
-    
-    snprintf(
-        destination,
-        200,
-        msgTemplate,
-        data.at,
-        data.aqi(),
-        data.pm10,
-        data.pm25,
-        data.temp,
-        shelly.getState() == Switch::ON ? 1 : 0
-    );
-}
-
 void createInfoEventMessage(char *destination, char* code)
 {
     char msgTemplate[] = R"===({"event":"info", "data":{ "code": "%s" }})===";
     
     snprintf(destination, 100, msgTemplate, code);
-}
-
-void notifyClientsWithError(char *code)
-{
-    char errorPayload[100];
-    char msgTemplate[] = R"===({"event":"error", "data":{ "code": "%s" }})===";
-    
-    snprintf(errorPayload, 100, msgTemplate, code);
-
-    webSocketServer.textAll(errorPayload);
-}
-
-void notifyClientsWithSensorsData(Sensors data)
-{
-    char sensorsPayload[200];
-
-    createSensorsEventMessage(sensorsPayload, data);
-
-    webSocketServer.textAll(sensorsPayload);
-}
-
-void notifyClientsThatMeasuringStarted()
-{
-    char payload[100];
-    char msgTemplate[] = R"===({"event":"measuring","data":{ "nextReadAt":%d }})===";
-    
-    snprintf(
-        payload,
-        100,
-        msgTemplate,
-        nextReadAt - millis()
-    );
-
-    webSocketServer.textAll(payload);
-}
-
-void notifyClientsAboutNextWakeUp()
-{
-    char payload[100];
-    char msgTemplate[] = R"===({"event":"sleeping","data":{ "nextWakeupAt":%d }})===";
-    
-    snprintf(
-        payload,
-        100,
-        msgTemplate,
-        wakeUpAt - millis()
-    );
-
-    webSocketServer.textAll(payload);
 }
 
 /*****************************HTTP SERVER****************************************/
@@ -621,6 +392,35 @@ volatile unsigned long notifyClientsWithSensorsDataAt = 0;
 
 #define WEBSOCKET_SENSOR_DATA_UPDATE_INTERVAL 30000; // 30 s
 
+unsigned int _nextAutoSwitchTime = 0;
+
+void switchShellyBySensorData(Sensors* data, int ppm_limit)
+{
+    if (_nextAutoSwitchTime > millis()) {
+        data->switch_ai_decision = WAITING;
+        return;
+    }
+
+    shelly.turnOffPendingStateChange();
+    _nextAutoSwitchTime = 0;
+
+    float limitPlusTenPercent = ppm_limit + (ppm_limit * 0.1);
+    
+    if (data->aqi() >= limitPlusTenPercent) { // limit + 10% felett
+        data->switch_ai_decision = SWITCH_OFF;
+        shelly.turnOff();
+        _nextAutoSwitchTime = millis() + config.switch_back_time * 60 * 1000; // switch_back_time x minutes
+    } else if (data->aqi() >= ppm_limit) { // limit és limit+10% kozott
+        if (! measuring) {
+            wakeUpAt = millis() + 30000;
+        }
+        data->switch_ai_decision = PROGRESSIVE_MEASURE;
+    } else {
+        shelly.turnOn();
+        data->switch_ai_decision = SWITCH_ON;
+    }
+}
+
 void refreshSensors()
 {
     shelly.refreshState();
@@ -631,18 +431,22 @@ void refreshSensors()
 
     if (readAirQualitySensor(&data)) {
         data.at = timeClient.getEpochTime();
-        shelly.handleAutoSwitch(&data);
+        
+        if (config.auto_switch_enabled) {    
+            switchShellyBySensorData(&data, config.ppm_limit);
+        }
+
         sensorsHistory.addData(data);
         // sensorsHistory.print();
         notifyClientsWithSensorsDataAt = 0;
 
-        notifyClientsAboutNextWakeUp();
+        webSocketServer.notifyClientsAboutNextWakeUp(wakeUpAt);
     }
 
     if (! sensorsHistory.isEmpty()
         && notifyClientsWithSensorsDataAt < millis()
     ) {
-        notifyClientsWithSensorsData(sensorsHistory.last());
+        webSocketServer.notifyClientsWithSensorsData(sensorsHistory.last());
         notifyClientsWithSensorsDataAt = millis() + WEBSOCKET_SENSOR_DATA_UPDATE_INTERVAL;
     }
 }
@@ -664,6 +468,8 @@ void setup() {
     setupHttpServer();
 
     setupMDNS();
+
+    shelly.setIP(config.shelly_ip);
 
     shelly.refreshState();
 

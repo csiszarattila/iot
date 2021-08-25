@@ -1,3 +1,6 @@
+#ifndef SENSOR_HISTORY_H
+#define SENSOR_HISTORY_H
+
 #include "LinkedList.h"
 #include <HardwareSerial.h>
 
@@ -135,3 +138,5 @@ class SensorsHistory
             Serial.println("------");
         }
 };
+
+#endif

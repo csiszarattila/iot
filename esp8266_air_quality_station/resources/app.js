@@ -203,6 +203,9 @@ socket.onmessage = function (message) {
         case "sleeping":
             window.dispatchEvent(new CustomEvent('sleeping', {detail: payload.data}));
             break;
+        case "shelly":
+            window.dispatchEvent(new CustomEvent('shelly-update', {detail: payload.data}));
+            break;
         case "info":
             switch (payload.data.code) {
                 case "settings.saved":

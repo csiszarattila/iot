@@ -82,7 +82,7 @@
                     :class="{'border-danger': error}"
                     style="width: 15rem;"
                     x-data="shellySwitch()"
-                    @sensors-update.window="on = $event.detail.switch_state"
+                    @shelly-update.window="on = $event.detail.state"
                     @shelly-error.window="error = true"
                 >
                     <h4 class="card-header" :class="{'bg-danger': error}"><i class="fas fa-bolt"></i> Kapcsoló</h4>

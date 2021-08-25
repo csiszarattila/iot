@@ -28,8 +28,8 @@ public:
         res.pm10 = random(100, 999) / 10.0;
         res.pm25 = random(100, 999) / 10.0;
 
-        // res.pm10 = res.pm25 = sampleValues[lastIdx];
-        // lastIdx = lastIdx < 9 ? lastIdx+1 : 0;
+        res.pm10 = res.pm25 = sampleValues[lastIdx];
+        lastIdx = lastIdx < 9 ? lastIdx+1 : 0;
 
         return res;
     }

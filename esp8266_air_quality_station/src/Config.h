@@ -1,6 +1,11 @@
+#ifndef CONFIG_H
+#define CONFIG_H
+
 #include <ArduinoJson.h>
 #include <LittleFS.h>
 #include <RemoteDebug.h>
+
+extern RemoteDebug Debug;
 
 #define NUMBER_OF_CONFIG_ITEMS 9
 
@@ -86,3 +91,5 @@ class Config
             configFile.close();
         }
 };
+
+#endif
