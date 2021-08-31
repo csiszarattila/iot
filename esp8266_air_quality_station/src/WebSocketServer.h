@@ -14,6 +14,7 @@ class WebSocketMessage
         static void createConfigEventMessage(Config config, char *destination);
         static void createSensorsEventMessage(char *destination, Sensors data);
         static void createShellySwitchStatusEventMessage(char *destination, Switch *shelly);
+        static void createInfoEventMessage(char *destination, char* code);
 };
 
 class WebSocketServer : public AsyncWebSocket

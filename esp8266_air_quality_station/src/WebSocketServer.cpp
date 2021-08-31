@@ -107,3 +107,10 @@ void WebSocketMessage::createShellySwitchStatusEventMessage(char *destination, S
         shelly->getState() == Switch::ON ? 1 : 0
     );
 }
+
+void WebSocketMessage::createInfoEventMessage(char *destination, char* code)
+{
+    char msgTemplate[] = R"===({"event":"info", "data":{ "code": "%s" }})===";
+    
+    snprintf(destination, 100, msgTemplate, code);
+}

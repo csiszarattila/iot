@@ -145,7 +145,7 @@ void handleWebSocketMessage(
             shelly.setIP(config.shelly_ip);
 
             char infoMessagePayload[100];
-            createInfoEventMessage(infoMessagePayload, "settings.saved");
+            WebSocketMessage::createInfoEventMessage(infoMessagePayload, "settings.saved");
             client->text(infoMessagePayload);
         }
 
@@ -196,13 +196,6 @@ void onWebsocketEvent(
       case WS_EVT_ERROR:
         break;
   }
-}
-
-void createInfoEventMessage(char *destination, char* code)
-{
-    char msgTemplate[] = R"===({"event":"info", "data":{ "code": "%s" }})===";
-    
-    snprintf(destination, 100, msgTemplate, code);
 }
 
 /*****************************HTTP SERVER****************************************/
