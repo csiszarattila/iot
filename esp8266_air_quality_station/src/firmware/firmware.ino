@@ -15,22 +15,22 @@
 #include <NTPClient.h>
 #include <WiFiUdp.h>
 #include <AsyncElegantOTA.h>
-#include "src/LinkedList.h"
-#include "src/Sensors.h"
+#include "LinkedList.h"
+#include "Sensors.h"
 /*****************************REMOTEDEBUG****************************************/
 #include <RemoteDebug.h> //https://github.com/JoaoLopesF/RemoteDebug
 RemoteDebug Debug;
 
 // Includes which uses RemoteDebug (debugV, debugE, ...)
-#include "src/Config.h"
-#include "src/ShellySwitch.h"
-#include "src/WebSocketServer.h"
+#include "Config.h"
+#include "ShellySwitch.h"
+#include "WebSocketServer.h"
 
 #ifndef DEMO_MODE
     #define DEMO_MODE 0
 #endif
 
-#include "src/SDSSensor.h"
+#include "SDSSensor.h"
 
 WebSocketServer webSocketServer("/ws");
 
