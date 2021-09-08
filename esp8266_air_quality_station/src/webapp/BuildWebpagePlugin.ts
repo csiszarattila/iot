@@ -57,7 +57,7 @@ export default function BuildWebpagePlugin(): Plugin {
             #endif
             `;
     
-            FS.writeFileSync(path.resolve(__dirname, './../webpage.h'), FILE);
+            FS.writeFileSync(path.resolve(__dirname, './../firmware/webpage.h'), FILE);
             console.log(`[COMPRESS] Compressed Build Files to webpage.h: ${ (output.length/1024).toFixed(2) }KB`);
           });
       },

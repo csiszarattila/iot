@@ -22,14 +22,15 @@ class Switch
             }
 
             _nextRefreshStateTime = millis() + 15*1000; // 15s
-
+            
+            WiFiClient client;
             HTTPClient httpClient;
 
             // https://arduinojson.org/v6/how-to/use-arduinojson-with-httpclient/
             // Unfortunately, by using the underlying Stream, we bypass the code that 
             // handles chunked transfer encoding, so we must switch to HTTP version 1.0.
             httpClient.useHTTP10(true);
-            httpClient.begin(ip, 80, "/relay/0/");
+            httpClient.begin(client, ip, 80, "/relay/0/");
             int responseCode = httpClient.GET();
             
             if (responseCode < 0) {
@@ -58,12 +59,13 @@ class Switch
         }
 
         void setState(RelayState newState) {
+            WiFiClient client;
             HTTPClient httpClient;
 
             String path("/relay/0?turn=");
             path.concat(newState == ON ? "on" : "off");
 
-            httpClient.begin(ip, 80, path);
+            httpClient.begin(client, ip, 80, path);
             int responseCode = httpClient.GET();
 
             if (responseCode < 0) {

@@ -10,12 +10,17 @@
     arduino-cli lib install "DHT sensor library"
     arduino-cli lib install "Nova Fitness Sds dust sensors library"
     arduino-cli lib install AsyncElegantOTA
+    arduino-cli lib install Websockets
 
 Some libraries require manual install
 
     cd ~/Arduino/libraries
     git clone https://github.com/me-no-dev/ESPAsyncWebServer.git
     git clone https://github.com/me-no-dev/ESPAsyncTCP.git
+
+Note: Compiling with esp8266-core >= 3.x need to remove the old, bundled Websockets version from RemoteDebug, otherwise arduino compile fails because try to compile it anyway:
+
+rm -rf /home/csiszar/Arduino/libraries/RemoteDebug/src/utility
 
 # Compile and Upload
 
@@ -56,3 +61,6 @@ https://github.com/earlephilhower/arduino-esp8266littlefs-plugin
 
 ### Upload With Arduino IDE
 https://github.com/esp8266/arduino-esp8266fs-plugin
+
+# Bibliography
+https://news.ycombinator.com/item?id=27124671
