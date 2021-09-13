@@ -7,9 +7,9 @@
                     <input class="form-check-input" type="checkbox" id="flexSwitchCheckDefault" v-model="settings.auto_switch_enabled">
                     <label class="form-check-label" for="flexSwitchCheckDefault">Automatikus ki/bekapcsolás</label>
                 </div>
-                <div class="mb-3">
+                <div class="mb-3" v-if="settings.aqi_sensor_type == 'sds'">
                     <label for="measuring_frequency" class="form-label">Mérési gyakoriság (perc):</label>
-                    <strong v-text="settings.measuring_frequency"></strong>
+                    <strong class="ms-2" v-text="settings.measuring_frequency"></strong>
                     <input type="range" class="form-range" min="1" max="120" step="1" name="measuring_frequency" v-model="settings.measuring_frequency">
                 </div>
                 <div class="mb-3">

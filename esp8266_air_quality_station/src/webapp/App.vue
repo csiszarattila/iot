@@ -11,11 +11,17 @@
     </div>
 
     <div class="row">
-        <div class="col-sm-6">
-            <AQISensorCard 
+        <div class="col-sm-6" v-if="settings.aqi_sensor_type == 'sds'">
+            <AQISensorSDSCard 
                 :data="sensorsData"
                 :sensor="aqiSensor"
                 @measure-now="measureNow"
+            />
+        </div>
+        <div class="col-sm-6"  v-if="settings.aqi_sensor_type == 'sps030'">
+            <AQISensorSPS030Card 
+                :data="sensorsData"
+                :sensor="aqiSensor"
             />
         </div>
 
@@ -25,8 +31,10 @@
                 @switched="switchShelly($event.on)"
             />
         </div>
+    </div>
 
-        <div class="col-sm-6 mt-4">
+    <div class="row">
+        <div class="col mt-4">
             <SensorHistoryCard
                 :items="sensorsHistory"
             />
@@ -34,7 +42,7 @@
     </div>
         
     <div class="row mt-4">
-        <div class="col-sm-6">
+        <div class="col">
             <SettingsCard 
               v-model:settings="settings"
               :saving="saving"
@@ -60,7 +68,8 @@ import { formatUnixTimestamp } from './Utils'
 import _ from "lodash"
 import { defineComponent, ref } from 'vue'
 import SettingsCard from './components/SettingsCard.vue'
-import AQISensorCard from './components/AQISensorCard.vue'
+import AQISensorSDSCard from './components/AQISensorSDSCard.vue'
+import AQISensorSPS030Card from './components/AQISensorSPS030Card.vue'
 import ShellySwitchCard from './components/ShellySwitchCard.vue'
 import SensorHistoryCard from './components/SensorHistoryCard.vue'
 
@@ -74,7 +83,8 @@ export default defineComponent({
   name: 'App',
   components: {
     SettingsCard,
-    AQISensorCard,
+    AQISensorSDSCard,
+    AQISensorSPS030Card,
     ShellySwitchCard,
     SensorHistoryCard,
   },
@@ -87,12 +97,15 @@ export default defineComponent({
       measuring_frequency: 1,
       switch_back_time: 30,
       version: '-',
+      aqi_sensor_type: 'sps030',
     })
     
     const sensorsData = ref<SensorsData>({
       aqi: 0,
-      pm10: 0,
+      pm1: 0,
       pm25: 0,
+      pm4: 0,
+      pm10: 0,
       at: 0,
     })
 
@@ -158,7 +171,7 @@ export default defineComponent({
 
                 if (! found) {
                     sensorsHistory.value.push(payload.data)
-                    sensorsHistory.value = sensorsHistory.value.sort(function (a, b) { return a.at - b.at })
+                    sensorsHistory.value = sensorsHistory.value.sort(function (a, b) { return b.at - a.at })
                 }
 
                 if (sensorsHistory.value.length == 20) { 

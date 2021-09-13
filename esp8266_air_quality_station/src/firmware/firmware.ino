@@ -25,12 +25,13 @@ RemoteDebug Debug;
 #include "Config.h"
 #include "ShellySwitch.h"
 #include "WebSocketServer.h"
+#include "Version.h"
 
-#ifndef DEMO_MODE
-    #define DEMO_MODE 0
+#if SENSOR_SDS
+    #include "SDSSensor.h"
+#else
+    #include "SPS030Sensor.h"
 #endif
-
-#include "SDSSensor.h"
 
 WebSocketServer webSocketServer("/ws");
 
@@ -171,7 +172,7 @@ void onWebsocketEvent(
       case WS_EVT_CONNECT:
         debugV("WebSocket client #%u connected from %s\n", client->id(), client->remoteIP().toString().c_str());
         
-        char configPayload[200];
+        char configPayload[250];
         WebSocketMessage::createConfigEventMessage(config, configPayload);
         client->text(configPayload);
         
@@ -249,7 +250,11 @@ void setupHttpServer()
 
 volatile unsigned long nextGoogleSheetsUpdateAt = 0;
 
-#define GOOGLE_SHEET_UPDATE_INTERVAL 5*60000 // 5m
+#if (SDS_SENSOR)
+    #define GOOGLE_SHEET_UPDATE_INTERVAL 5*60000 // 5m
+#else
+    #define GOOGLE_SHEET_UPDATE_INTERVAL 30000 // 30sec
+#endif
 
 void sendDataToGoogleSheets()
 {
@@ -270,22 +275,33 @@ void sendDataToGoogleSheets()
         return;
     }
 
-    char parameters[60];
+    char parameters[150];
 
     Sensors sensors = sensorsHistory.last();
     
     snprintf(
         parameters,
-        60,
-        "?temperature=%.1f&humidity=%.1f&pm25=%.2f&pm10=%.2f&aqi=%d",
+        150,
+        "?temperature=%.1f&humidity=%.1f&pm25=%.2f&pm10=%.2f&pm4=%.2f&pm1=%.2f&aqi=%d&ai=%s",
         sensors.temp,
         sensors.humidity,
         sensors.pm25,
         sensors.pm10,
-        sensors.aqi()
+        sensors.pm4,
+        sensors.pm1,
+        sensors.aqi(),
+        sensors.switch_ai_decision == SWITCH_OFF ? "Ki\0"
+        : sensors.switch_ai_decision == SWITCH_ON ? "Be\0"
+        : sensors.switch_ai_decision == PROGRESSIVE_MEASURE ? "10%\0"
+        : sensors.switch_ai_decision == WAITING ? "Varakozas\0"
+        : "-\0"
     );
 
+#if SENSOR_SDS
     client->write("GET /macros/s/AKfycbypJ1kblXzkFC05FG_OlAuAoghtzLHWvQxKG7s1MGFpCPblUSbL6iT_VQ/exec");
+#else
+    client->write("GET /macros/s/AKfycbyGuDNW_v6MFAqGj6S2ujxHutmZ5XFG_oxodKUnGg/exec");
+#endif
     client->write(parameters);
     client->write(" HTTP/1.1\r\nHost: script.google.com\r\n\r\n");
     client->flush();
@@ -382,7 +398,7 @@ void setup() {
     
     setupAirQualitySensor();
 
-    nextGoogleSheetsUpdateAt = millis() + 60000; // 1m
+    nextGoogleSheetsUpdateAt = millis() + GOOGLE_SHEET_UPDATE_INTERVAL;
 
     sensorsHistory.restore();
 }

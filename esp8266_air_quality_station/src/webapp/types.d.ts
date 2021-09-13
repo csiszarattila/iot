@@ -1,7 +1,9 @@
 export interface SensorsData {
     aqi: number
-    pm10: number,
+    pm1: number,
     pm25: number,
+    pm4: number,
+    pm10: number,
     at: number,
 }
 
@@ -20,6 +22,7 @@ export interface Settings {
     measuring_frequency: number,
     switch_back_time: number,
     version: String,
+    aqi_sensor_type: String,
 }
 
 export interface ShellySwitch {

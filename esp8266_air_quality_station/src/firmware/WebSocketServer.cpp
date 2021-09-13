@@ -64,24 +64,25 @@ void WebSocketServer::notifyClientsAboutNextWakeUp(unsigned long wakeUpAt)
 
 void WebSocketMessage::createConfigEventMessage(Config config, char *destination)
 {
-    char msgTemplate[] = R"===({"event":"config", "data":{ "shelly_ip":"%s", "ppm_limit":"%d", "auto_switch_enabled": %s, "measuring_frequency": %d, "switch_back_time": %d, "version": "%s"}})===";
+    char msgTemplate[] = R"===({"event":"config", "data":{ "shelly_ip":"%s", "ppm_limit":"%d", "auto_switch_enabled": %s, "measuring_frequency": %d, "switch_back_time": %d, "version": "%s", "aqi_sensor_type": "%s" }})===";
     
     snprintf(
         destination,
-        200,
+        250,
         msgTemplate,
         config.shelly_ip,
         config.ppm_limit,
         config.auto_switch_enabled ? "true" : "false",
         config.measuring_frequency,
         config.switch_back_time,
-        AQS_SW_VERSION
+        AQS_SW_VERSION,
+        SENSOR_SDS ? "sds" : "sps030"
     );
 }
 
 void WebSocketMessage::createSensorsEventMessage(char *destination, Sensors data)
 {
-    char msgTemplate[] = R"===({"event":"sensors", "data":{ "at":%d,"aqi":%d,"pm10":%.2f,"pm25":%.2f,"temp":"%.2f" }})===";
+    char msgTemplate[] = R"===({"event":"sensors", "data":{ "at":%d,"aqi":%d,"pm1":%.2f,"pm25":%.2f,"pm4":%.2f,"pm10":%.2f,"temp":"%.2f" }})===";
     
     snprintf(
         destination,
@@ -89,8 +90,10 @@ void WebSocketMessage::createSensorsEventMessage(char *destination, Sensors data
         msgTemplate,
         data.at,
         data.aqi(),
-        data.pm10,
+        data.pm1,
         data.pm25,
+        data.pm4,
+        data.pm10,
         data.temp
     );
 }
