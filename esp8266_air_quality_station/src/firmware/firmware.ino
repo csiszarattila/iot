@@ -53,6 +53,7 @@ WiFiManager wifiManager;
 void setupWifiManager()
 {
     WiFi.hostname(config.mdns_hostname);
+    // wifiManager.resetSettings();
     wifiManager.autoConnect(config.mdns_hostname);
     debugV("WiFi connected. IP address: %s", WiFi.localIP().toString().c_str());
 }
@@ -148,6 +149,8 @@ void handleWebSocketMessage(
             char infoMessagePayload[100];
             WebSocketMessage::createInfoEventMessage(infoMessagePayload, "settings.saved");
             client->text(infoMessagePayload);
+
+            webSocketServer.notifyClientsWithConfig(config);
         }
 
         if (strcmp(event, "measure-aqi") == 0) {
@@ -216,18 +219,6 @@ void setupHttpServer()
         request->send(response);
     });
       
-    httpServer.on("/alpine.js", HTTP_GET, [](AsyncWebServerRequest *request) {
-        AsyncWebServerResponse *response = request->beginResponse(LittleFS, "/alpine.js.gz");
-        response->addHeader("Content-Encoding","gzip");
-        request->send(response);
-    });
-      
-    httpServer.on("/app.css", HTTP_GET, [](AsyncWebServerRequest *request) {
-        AsyncWebServerResponse *response = request->beginResponse(LittleFS, "/app.css.gz", "text/css");
-        response->addHeader("Content-Encoding","gzip");
-        request->send(response);
-    });
-      
     httpServer.on("/config.json", HTTP_GET, [](AsyncWebServerRequest *request) {
         AsyncWebServerResponse *response = request->beginResponse(LittleFS, "/config.json", "application/json");
         request->send(response);
@@ -275,13 +266,13 @@ void sendDataToGoogleSheets()
         return;
     }
 
-    char parameters[150];
+    char parameters[250];
 
     Sensors sensors = sensorsHistory.last();
     
     snprintf(
         parameters,
-        150,
+        250,
         "?temperature=%.1f&humidity=%.1f&pm25=%.2f&pm10=%.2f&pm4=%.2f&pm1=%.2f&aqi=%d&ai=%s",
         sensors.temp,
         sensors.humidity,

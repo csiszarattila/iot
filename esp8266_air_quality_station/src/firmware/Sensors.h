@@ -28,7 +28,7 @@ typedef struct Sensors {
 } Sensors;
 
 
-#define SENSOR_HISTORY_SIZE 5000
+#define SENSOR_HISTORY_SIZE 100
 class SensorsHistory
 {
     public:

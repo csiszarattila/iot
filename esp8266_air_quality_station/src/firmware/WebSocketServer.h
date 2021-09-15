@@ -5,6 +5,7 @@
 #include "Sensors.h"
 #include "ShellySwitch.h"
 #include "Version.h"
+#include "Config.h"
 
 class Switch;
 
@@ -31,7 +32,8 @@ class WebSocketServer : public AsyncWebSocket
     void notifyClientsThatMeasuringStarted(unsigned long nextReadAt);
     
     void notifyClientsAboutNextWakeUp(unsigned long wakeUpAt);
-    
+
+    void notifyClientsWithConfig(Config config);    
 };
 
 #endif

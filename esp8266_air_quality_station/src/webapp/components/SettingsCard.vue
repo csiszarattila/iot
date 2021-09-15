@@ -14,12 +14,12 @@
                 </div>
                 <div class="mb-3">
                     <label for="ppm_limit" class="form-label">Lekapcsolási határ (LM Index):</label>
-                    <strong v-text="settings.ppm_limit"></strong>
+                    <strong class="ms-2" v-text="settings.ppm_limit"></strong>
                     <input type="range" class="form-range" min="0" max="100" step="1" name="ppm_limit" v-model="settings.ppm_limit">
                 </div>
                 <div class="mb-3">
                     <label for="switch_back_time" class="form-label">Lekapcsolás utáni legkorábbi visszakapcsolás (perc):</label>
-                    <strong v-text="settings.switch_back_time"></strong>
+                    <strong class="ms-2" v-text="settings.switch_back_time"></strong>
                     <input type="range" class="form-range" min="0" max="120" step="1" name="switch_back_time" v-model="settings.switch_back_time">
                 </div>
                 <div class="mb-3">
@@ -35,10 +35,14 @@
                     ></span>
                     Beállítások mentése
                 </button>
+                
+                <div class="mt-4 alert alert-success" v-if="saved">
+                    Beállítások mentve!
+                </div>
 
                 <div class="mt-5 mb-3">
                     <div>
-                        <label for="version" class="form-label">Jelenlegi verzió: <span v-text="settings.version"></span></label>
+                        <label for="version" class="form-label">Jelenlegi verzió: <span>{{ settings.version + (settings.demo_mode ? ' (demo mód)' : '') }} </span></label>
                     </div>
                 </div>
 
@@ -64,7 +68,8 @@
 
 <script lang="ts">
 import { Settings } from './../types'
-import { defineComponent, PropType, ref } from 'vue'
+import { defineComponent, PropType, ref, watch } from 'vue'
+import { formatUnixTimestamp } from '../Utils'
 
 export default defineComponent({
     name: "SettingsCard",
@@ -81,6 +86,19 @@ export default defineComponent({
         'restart'
     ],
     setup(props) {
+        const saved = ref(false)
+
+        watch(() => props.saving, (saving: boolean, previous: boolean) => {
+            if (saving == false) {
+                saved.value = true
+                setTimeout(() => { saved.value = false }, 2000);
+            }
+        })
+
+        return {
+            saved,
+            formatUnixTimestamp
+        }
     }
 })
 </script>

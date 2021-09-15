@@ -23,6 +23,7 @@ export interface Settings {
     switch_back_time: number,
     version: String,
     aqi_sensor_type: String,
+    demo_mode: boolean,
 }
 
 export interface ShellySwitch {

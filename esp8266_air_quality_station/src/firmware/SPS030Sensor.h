@@ -37,7 +37,7 @@ extern Config config;
     void sensirion_i2c_init() { }
     int16_t sps30_probe() { return 0; }
     int16_t sps30_set_fan_auto_cleaning_interval_days(int8_t days) { return 0; }
-    int16_t sps30_start_measurement() { }
+    int16_t sps30_start_measurement() { return 0; }
     int16_t sps30_read_data_ready(uint16_t* data_ready) { *data_ready = 1; return 0; }
     int16_t sps30_read_measurement(struct sps30_measurement* measurement)
     {
@@ -52,6 +52,8 @@ extern Config config;
             = measurement->mc_10p0
             = spsSamples[lastIdx];
         lastIdx = lastIdx < 9 ? lastIdx+1 : 0;
+
+        return 0;
     }
 #else
     #include <sps30.h>

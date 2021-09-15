@@ -32,6 +32,16 @@ void WebSocketServer::notifyClientsWithShellyData(Switch *shelly)
     textAll(sensorsPayload);
 }
 
+
+void WebSocketServer::notifyClientsWithConfig(Config config)
+{
+    char configPayload[250];
+
+    WebSocketMessage::createConfigEventMessage(config, configPayload);
+
+    textAll(configPayload);
+}
+
 void WebSocketServer::notifyClientsThatMeasuringStarted(unsigned long nextReadAt)
 {
     char payload[100];
@@ -64,7 +74,7 @@ void WebSocketServer::notifyClientsAboutNextWakeUp(unsigned long wakeUpAt)
 
 void WebSocketMessage::createConfigEventMessage(Config config, char *destination)
 {
-    char msgTemplate[] = R"===({"event":"config", "data":{ "shelly_ip":"%s", "ppm_limit":"%d", "auto_switch_enabled": %s, "measuring_frequency": %d, "switch_back_time": %d, "version": "%s", "aqi_sensor_type": "%s" }})===";
+    char msgTemplate[] = R"===({"event":"config", "data":{ "shelly_ip":"%s", "ppm_limit":"%d", "auto_switch_enabled": %s, "measuring_frequency": %d, "switch_back_time": %d, "version": "%s", "aqi_sensor_type": "%s", "demo_mode": %s}})===";
     
     snprintf(
         destination,
@@ -76,7 +86,8 @@ void WebSocketMessage::createConfigEventMessage(Config config, char *destination
         config.measuring_frequency,
         config.switch_back_time,
         AQS_SW_VERSION,
-        SENSOR_SDS ? "sds" : "sps030"
+        SENSOR_SDS ? "sds" : "sps030",
+        DEMO_MODE ? "true" : "false"
     );
 }
 

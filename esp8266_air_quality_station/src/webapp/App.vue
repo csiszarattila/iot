@@ -98,6 +98,7 @@ export default defineComponent({
       switch_back_time: 30,
       version: '-',
       aqi_sensor_type: 'sps030',
+      demo_mode: false,
     })
     
     const sensorsData = ref<SensorsData>({
@@ -209,7 +210,6 @@ export default defineComponent({
             case "info":
                 switch (payload.data.code) {
                     case "settings.saved":
-                        alerts.value.info("Beállítások mentve!");
                         saving.value = false
                         break;
                     default:
