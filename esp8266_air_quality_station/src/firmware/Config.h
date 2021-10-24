@@ -7,7 +7,7 @@
 
 extern RemoteDebug Debug;
 
-#define NUMBER_OF_CONFIG_ITEMS 9
+#define NUMBER_OF_CONFIG_ITEMS 10
 
 class Config
 {
@@ -19,6 +19,7 @@ class Config
         bool auto_switch_enabled = true;
         int measuring_frequency = 1;
         int switch_back_time = 30;
+        int required_switch_decisions = 3;
 
         void loadFromFile()
         {
@@ -47,6 +48,7 @@ class Config
             auto_switch_enabled = json["auto_switch_enabled"] | true;
             measuring_frequency = json["measuring_frequency"] | 1;
             switch_back_time = json["switch_back_time"] | 30;
+            required_switch_decisions = json["required_switch_decisions"] | 3;
 
             configFile.close();
         }
@@ -57,6 +59,7 @@ class Config
             auto_switch_enabled = payload["data"]["auto_switch_enabled"];
             measuring_frequency = payload["data"]["measuring_frequency"];
             switch_back_time = payload["data"]["switch_back_time"];
+            required_switch_decisions = payload["data"]["required_switch_decisions"];
             
             strlcpy(
                 shelly_ip,
@@ -83,6 +86,7 @@ class Config
             json["auto_switch_enabled"] = auto_switch_enabled;
             json["measuring_frequency"] = measuring_frequency;
             json["switch_back_time"] = switch_back_time;
+            json["required_switch_decisions"] = required_switch_decisions;
 
             if (serializeJson(json, configFile) == 0) {
                 debugE("Failed to write config to file.");

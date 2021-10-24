@@ -99,6 +99,7 @@ export default defineComponent({
       version: '-',
       aqi_sensor_type: 'sps030',
       demo_mode: false,
+      required_switch_decisions: 3,
     })
     
     const sensorsData = ref<SensorsData>({
@@ -249,6 +250,7 @@ export default defineComponent({
                 "auto_switch_enabled": settings.value.auto_switch_enabled,
                 "measuring_frequency": settings.value.measuring_frequency,
                 "switch_back_time": settings.value.switch_back_time,
+                "required_switch_decisions": settings.value.required_switch_decisions,
             }
         }))
     }

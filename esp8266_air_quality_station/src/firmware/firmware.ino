@@ -175,7 +175,7 @@ void onWebsocketEvent(
       case WS_EVT_CONNECT:
         debugV("WebSocket client #%u connected from %s\n", client->id(), client->remoteIP().toString().c_str());
         
-        char configPayload[250];
+        char configPayload[300];
         WebSocketMessage::createConfigEventMessage(config, configPayload);
         client->text(configPayload);
         
@@ -306,6 +306,9 @@ volatile unsigned long notifyClientsWithSensorsDataAt = 0;
 
 unsigned int _nextAutoSwitchTime = 0;
 
+unsigned int switchOffDecisions = 0;
+unsigned int switchOnDecisions = 0;
+
 void switchShellyBySensorData(Sensors* data, int ppm_limit)
 {
     if (_nextAutoSwitchTime > millis()) {
@@ -320,16 +323,26 @@ void switchShellyBySensorData(Sensors* data, int ppm_limit)
     
     if (data->aqi() >= limitPlusTenPercent) { // limit + 10% felett
         data->switch_ai_decision = SWITCH_OFF;
-        shelly.turnOff();
-        _nextAutoSwitchTime = millis() + config.switch_back_time * 60 * 1000; // switch_back_time x minutes
+        switchOnDecisions = 0;
+        
+        if (++switchOffDecisions == config.required_switch_decisions) {
+            shelly.turnOff();
+            _nextAutoSwitchTime = millis() + config.switch_back_time * 60 * 1000; // switch_back_time x minutes
+            switchOffDecisions = 0;
+        }
     } else if (data->aqi() >= ppm_limit) { // limit és limit+10% kozott
         if (! measuring) {
             wakeUpAt = millis() + 30000;
         }
         data->switch_ai_decision = PROGRESSIVE_MEASURE;
     } else {
-        shelly.turnOn();
         data->switch_ai_decision = SWITCH_ON;
+        switchOffDecisions = 0;
+
+        if (++switchOnDecisions == config.required_switch_decisions) {
+            shelly.turnOn();
+            switchOnDecisions = 0;
+        }
     }
 }
 

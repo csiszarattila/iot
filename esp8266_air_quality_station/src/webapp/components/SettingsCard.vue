@@ -23,6 +23,11 @@
                     <input type="range" class="form-range" min="0" max="120" step="1" name="switch_back_time" v-model="settings.switch_back_time">
                 </div>
                 <div class="mb-3">
+                    <label for="required_switch_decisions" class="form-label">Ki/be parancsok előtti mérések száma:</label>
+                    <strong class="ms-2" v-text="settings.required_switch_decisions"></strong>
+                    <input type="range" class="form-range" min="1" max="10" step="1" name="required_switch_decisions" v-model="settings.required_switch_decisions">
+                </div>
+                <div class="mb-3">
                     <label for="shelly_ip" class="form-label">Shelly kapcsoló ip címe:</label>
                     <input type="text" class="form-control" name="shelly_ip" v-model="settings.shelly_ip">
                 </div>

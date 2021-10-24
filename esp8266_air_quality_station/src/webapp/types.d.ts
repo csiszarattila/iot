@@ -24,6 +24,7 @@ export interface Settings {
     version: String,
     aqi_sensor_type: String,
     demo_mode: boolean,
+    required_switch_decisions: number,
 }
 
 export interface ShellySwitch {
