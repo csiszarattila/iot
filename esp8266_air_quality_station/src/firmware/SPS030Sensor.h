@@ -19,16 +19,15 @@ extern Config config;
 
     int lastIdx = 0;
     float limit = 10.0;
-    int tenpercent = limit * 0.1;
     int belowlimit = limit - 1;
     float spsSamples[10] = { 
         belowlimit,
         limit,
         limit,
-        limit + tenpercent - 0.1,
-        limit + tenpercent,
-        limit + tenpercent + 0.1,
+        limit,
         belowlimit,
+        limit,
+        limit + 1,
         belowlimit,
         belowlimit,
         belowlimit,

@@ -283,7 +283,6 @@ void sendDataToGoogleSheets()
         sensors.aqi(),
         sensors.switch_ai_decision == SWITCH_OFF ? "Ki\0"
         : sensors.switch_ai_decision == SWITCH_ON ? "Be\0"
-        : sensors.switch_ai_decision == PROGRESSIVE_MEASURE ? "10%\0"
         : sensors.switch_ai_decision == WAITING ? "Varakozas\0"
         : "-\0"
     );
@@ -318,10 +317,8 @@ void switchShellyBySensorData(Sensors* data, int ppm_limit)
 
     shelly.turnOffPendingStateChange();
     _nextAutoSwitchTime = 0;
-
-    float limitPlusTenPercent = ppm_limit + (ppm_limit * 0.1);
     
-    if (data->aqi() >= limitPlusTenPercent) { // limit + 10% felett
+    if (data->aqi() >= ppm_limit) {
         data->switch_ai_decision = SWITCH_OFF;
         switchOnDecisions = 0;
         
@@ -330,11 +327,6 @@ void switchShellyBySensorData(Sensors* data, int ppm_limit)
             _nextAutoSwitchTime = millis() + config.switch_back_time * 60 * 1000; // switch_back_time x minutes
             switchOffDecisions = 0;
         }
-    } else if (data->aqi() >= ppm_limit) { // limit és limit+10% kozott
-        if (! measuring) {
-            wakeUpAt = millis() + 30000;
-        }
-        data->switch_ai_decision = PROGRESSIVE_MEASURE;
     } else {
         data->switch_ai_decision = SWITCH_ON;
         switchOffDecisions = 0;

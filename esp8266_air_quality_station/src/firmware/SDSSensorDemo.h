@@ -7,14 +7,13 @@ public:
     float sampleValues[10];
 
     SdsDustSensor(int pinA, int pinB, float limit = 10.0) {
-        int tenpercent = limit * 0.1;
         int belowlimit = limit - 1;
         sampleValues[0] = belowlimit;
         sampleValues[1] = limit; 
         sampleValues[2] = limit;
-        sampleValues[3] = limit + tenpercent - 0.1;
-        sampleValues[4] = limit + tenpercent;
-        sampleValues[5] = limit + tenpercent + 0.1;
+        sampleValues[3] = limit - 0.1;
+        sampleValues[4] = limit;
+        sampleValues[5] = limit + 0.1;
         sampleValues[6] = belowlimit;
         sampleValues[7] = belowlimit;
         sampleValues[8] = belowlimit;

@@ -8,7 +8,6 @@ enum SwitchAIDecision {
     UNKNOWN = '-',
     SWITCH_OFF = 'K',
     SWITCH_ON = 'B',
-    PROGRESSIVE_MEASURE = 'P',
     WAITING = 'V'
 };
 
@@ -105,7 +104,6 @@ class SensorsHistory
                     data.aqi(),
                     data.switch_ai_decision == SWITCH_OFF ? "Ki\0"
                     : data.switch_ai_decision == SWITCH_ON ? "Be\0"
-                    : data.switch_ai_decision == PROGRESSIVE_MEASURE ? "10%\0"
                     : data.switch_ai_decision == WAITING ? "Varakozas\0"
                     : "-\0"
                 );
