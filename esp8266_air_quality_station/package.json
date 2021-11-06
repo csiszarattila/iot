@@ -4,7 +4,7 @@
     "webapp-preview": "vite preview src/webapp/",
     "webapp-build": "vue-tsc --noEmit && vite build --emptyOutDir src/webapp/",
     "compile": "arduino-cli compile -b esp8266:esp8266:d1:xtal=80,vt=flash,ssl=all,eesz=4M1M,ip=lm2f,dbg=Disabled,lvl=None____,wipe=none,baud=921600 --build-property=compiler.cpp.extra_flags=-DUSE_LIB_WEBSOCKET src/firmware/",
-    "compile-bin": "arduino-cli compile -b esp8266:esp8266:d1:xtal=80,vt=flash,ssl=all,eesz=4M1M,ip=lm2f,dbg=Disabled,lvl=None____,wipe=none,baud=921600 --build-property=compiler.cpp.extra_flags=-DUSE_LIB_WEBSOCKET --export-binaries src/firmware/",
+    "compile-bin": "arduino-cli compile -b esp8266:esp8266:d1:xtal=80,vt=flash,ssl=all,eesz=4M1M,ip=lm2f,dbg=Disabled,lvl=None____,wipe=none,baud=921600 --build-property=compiler.cpp.extra_flags=-DUSE_LIB_WEBSOCKET --export-binaries --output-dir binaries/ src/firmware/",
     "compile-demo": "arduino-cli compile -b esp8266:esp8266:d1:xtal=80,vt=flash,ssl=all,eesz=4M1M,ip=lm2f,dbg=Disabled,lvl=None____,wipe=none,baud=921600 --build-property compiler.cpp.extra_flags=-DDEMO_MODE=1 --build-property compiler.cpp.extra_flags=-DUSE_LIB_WEBSOCKET src/firmware/",
     "upload": "arduino-cli upload -b esp8266:esp8266:d1 -p /dev/ttyUSB0 src/firmware/",
     "release": "npm run webapp-build && npm run compile && npm run upload",
@@ -15,7 +15,7 @@
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "devDependencies": {
     "@fullhuman/postcss-purgecss": "^4.0.3",
     "@types/lodash": "^4.14.172",
@@ -31,7 +31,8 @@
     "typescript": "^4.3.2",
     "vite": "^2.4.4",
     "vite-plugin-singlefile": "^0.5.1",
-    "vue-tsc": "^0.2.2"
+    "vue-tsc": "^0.2.2",
+    "websocket": "^1.0.34"
   },
   "dependencies": {
     "@gfx/zopfli": "^1.0.15",

@@ -1,5 +1,5 @@
 #ifndef AQS_SW_VERSION
-    #define AQS_SW_VERSION "v1.1"
+    #define AQS_SW_VERSION "v1.1 (423faa1)"
 #endif
 
 #ifndef SENSOR_SDS

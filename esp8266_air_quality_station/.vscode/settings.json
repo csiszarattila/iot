@@ -31,7 +31,8 @@
         "string_view": "cpp",
         "system_error": "cpp",
         "thread": "cpp",
-        "optional": "cpp"
+        "optional": "cpp",
+        "hash_map": "cpp"
     },
     "esp8266fs.logLevel": "debug",
     "git.ignoreLimitWarning": true,
