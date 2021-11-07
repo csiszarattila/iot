@@ -131,8 +131,6 @@ class Switch
         bool _changeStateNextTime = false;
         RelayState _changeStateNextTimeTo = ON;
 
-        int _nextAutoSwitchTime = 0;
-
         int _nextRefreshStateTime = 0;
 
         char *ip;

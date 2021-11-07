@@ -6,9 +6,11 @@
 
 enum SwitchAIDecision {
     UNKNOWN = '-',
+    ABOVE = 'F',
+    BELOW = 'A',
     SWITCH_OFF = 'K',
     SWITCH_ON = 'B',
-    WAITING = 'V'
+    BEFORE_SWITCH_ON_TIME = 'V'
 };
 
 typedef struct Sensors {
@@ -102,9 +104,11 @@ class SensorsHistory
                     data.pm4,
                     data.pm10,
                     data.aqi(),
-                    data.switch_ai_decision == SWITCH_OFF ? "Ki\0"
+                    data.switch_ai_decision == ABOVE ? "Felette\0"
+                    : data.switch_ai_decision == BELOW ? "Alatta\0"
+                    : data.switch_ai_decision == SWITCH_OFF ? "Ki\0"
                     : data.switch_ai_decision == SWITCH_ON ? "Be\0"
-                    : data.switch_ai_decision == WAITING ? "Varakozas\0"
+                    : data.switch_ai_decision == BEFORE_SWITCH_ON_TIME ? "Alatta, de ido elott\0"
                     : "-\0"
                 );
             }

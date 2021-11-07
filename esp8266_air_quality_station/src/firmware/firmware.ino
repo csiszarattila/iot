@@ -281,9 +281,11 @@ void sendDataToGoogleSheets()
         sensors.pm4,
         sensors.pm1,
         sensors.aqi(),
-        sensors.switch_ai_decision == SWITCH_OFF ? "Ki\0"
+        sensors.switch_ai_decision == ABOVE ? "Felette\0"
+        : sensors.switch_ai_decision == BELOW ? "Alatta\0"
+        : sensors.switch_ai_decision == SWITCH_OFF ? "Ki\0"
         : sensors.switch_ai_decision == SWITCH_ON ? "Be\0"
-        : sensors.switch_ai_decision == WAITING ? "Varakozas\0"
+        : sensors.switch_ai_decision == BEFORE_SWITCH_ON_TIME ? "Alatta, de ido elott\0"
         : "-\0"
     );
 
@@ -303,37 +305,42 @@ volatile unsigned long notifyClientsWithSensorsDataAt = 0;
 
 #define WEBSOCKET_SENSOR_DATA_UPDATE_INTERVAL 30000; // 30 s
 
-unsigned int _nextAutoSwitchTime = 0;
+unsigned int _lastSwitchOffAt = 0;
 
 unsigned int switchOffDecisions = 0;
 unsigned int switchOnDecisions = 0;
 
 void switchShellyBySensorData(Sensors* data, int ppm_limit)
 {
-    if (_nextAutoSwitchTime > millis()) {
-        data->switch_ai_decision = WAITING;
-        return;
-    }
-
-    shelly.turnOffPendingStateChange();
-    _nextAutoSwitchTime = 0;
-    
     if (data->aqi() >= ppm_limit) {
-        data->switch_ai_decision = SWITCH_OFF;
+        data->switch_ai_decision = ABOVE;
         switchOnDecisions = 0;
         
-        if (++switchOffDecisions == config.required_switch_decisions) {
-            shelly.turnOff();
-            _nextAutoSwitchTime = millis() + config.switch_back_time * 60 * 1000; // switch_back_time x minutes
+        if (++switchOffDecisions >= config.required_switch_decisions) {
+            data->switch_ai_decision = SWITCH_OFF;
+            _lastSwitchOffAt = millis();
             switchOffDecisions = 0;
+            shelly.turnOffPendingStateChange();
+            shelly.turnOn();
         }
     } else {
-        data->switch_ai_decision = SWITCH_ON;
+        data->switch_ai_decision = BELOW;
         switchOffDecisions = 0;
+        switchOnDecisions++;
 
-        if (++switchOnDecisions == config.required_switch_decisions) {
-            shelly.turnOn();
+        if (_lastSwitchOffAt
+            && (_lastSwitchOffAt + config.switch_back_time*60*1000) > millis() // switch_back_time x minutes
+        ) {
+            data->switch_ai_decision = BEFORE_SWITCH_ON_TIME;
+            return;
+        }
+
+        if (switchOnDecisions >= config.required_switch_decisions) {
+            data->switch_ai_decision = SWITCH_ON;
             switchOnDecisions = 0;
+            _lastSwitchOffAt = 0;
+            shelly.turnOffPendingStateChange();
+            shelly.turnOn();
         }
     }
 }
