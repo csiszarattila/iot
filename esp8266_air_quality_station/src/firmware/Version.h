@@ -9,3 +9,7 @@
 #ifndef DEMO_MODE
     #define DEMO_MODE 0
 #endif
+
+#ifndef UUID
+    #define UUID "000002"
+#endif

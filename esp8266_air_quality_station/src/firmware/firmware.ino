@@ -266,14 +266,14 @@ void sendDataToGoogleSheets()
         return;
     }
 
-    char parameters[250];
+    char parameters[300];
 
     Sensors sensors = sensorsHistory.last();
     
     snprintf(
         parameters,
         250,
-        "?temperature=%.1f&humidity=%.1f&pm25=%.2f&pm10=%.2f&pm4=%.2f&pm1=%.2f&aqi=%d&ai=%s",
+        "?temperature=%.1f&humidity=%.1f&pm25=%.2f&pm10=%.2f&pm4=%.2f&pm1=%.2f&aqi=%d&ai=%s&uuid=%s",
         sensors.temp,
         sensors.humidity,
         sensors.pm25,
@@ -286,7 +286,8 @@ void sendDataToGoogleSheets()
         : sensors.switch_ai_decision == SWITCH_OFF ? "Ki\0"
         : sensors.switch_ai_decision == SWITCH_ON ? "Be\0"
         : sensors.switch_ai_decision == BEFORE_SWITCH_ON_TIME ? "Alatta, de ido elott\0"
-        : "-\0"
+        : "-\0",
+        UUID
     );
 
 #if SENSOR_SDS
