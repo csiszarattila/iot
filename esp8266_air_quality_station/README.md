@@ -11,6 +11,7 @@
     arduino-cli lib install "Nova Fitness Sds dust sensors library"
     arduino-cli lib install AsyncElegantOTA
     arduino-cli lib install Websockets
+    arduino-cli lib install "ESP8266 Influxdb"
 
 Some libraries require manual install
 

@@ -47,6 +47,52 @@ NTPClient timeClient(ntpUDP, NTP_ADDRESS, 0, NTP_INTERVAL);
 /*****************************CONFIG*********************************************/
 Config config;
 
+/*****************************INFLUXDB*********************************************/
+#include <InfluxDbClient.h>
+#include <InfluxDbCloud.h>
+
+#define INFLUXDB_URL "https://europe-west1-1.gcp.cloud2.influxdata.com"
+#define INFLUXDB_TOKEN "rGVVQ7giO6M2NzUW6mhZLmUW7aOHJmz6VVYXb5mT3xs-oTijfwg7DRaYSdAd5z849Sd2oV5FFXh2Jn727BNW_g=="
+#define INFLUXDB_ORG "csiszar.ati@gmail.com"
+#define INFLUXDB_BUCKET "csiszar.ati's Bucket"
+#define TZ_INFO "CET-1CEST,M3.5.0,M10.5.0/3"
+
+InfluxDBClient client(INFLUXDB_URL, INFLUXDB_ORG, INFLUXDB_BUCKET, INFLUXDB_TOKEN, InfluxDbCloud2CACert);
+
+Point influxData("sps030");
+
+void setupInflux()
+{
+    timeSync(TZ_INFO, "pool.ntp.org", "time.nis.gov");
+
+    // Check server connection
+    if (client.validateConnection()) {
+        debugV("Connected to InfluxDB.");
+    } else {
+        debugV("InfluxDB connection failed: %s", client.getLastErrorMessage());
+    }
+}
+
+void sendToInflux(Sensors data)
+{
+    influxData.clearFields();
+
+    influxData.addField("ppm1", data.pm1);
+    influxData.addField("ppm2", data.pm25);
+    influxData.addField("ppm4", data.pm4);
+    influxData.addField("ppm10", data.pm10);
+    influxData.addField("aqi", data.aqi());
+    influxData.addField("at", data.at);
+    influxData.addField("decision", data.switch_ai_decision);
+    //influxData.setTime(data.at);
+    
+    if (!client.writePoint(influxData)) {
+        debugE("InfluxDB write failed: %s", client.getLastErrorMessage());
+    } else {
+        debugV("Influxdb write success.");
+    }
+}
+
 /*****************************WIFI***********************************************/
 WiFiManager wifiManager;
 
@@ -319,10 +365,10 @@ void switchShellyBySensorData(Sensors* data, int ppm_limit)
         
         if (++switchOffDecisions >= config.required_switch_decisions) {
             data->switch_ai_decision = SWITCH_OFF;
-            _lastSwitchOffAt = millis();
             switchOffDecisions = 0;
+            _lastSwitchOffAt = millis();
             shelly.turnOffPendingStateChange();
-            shelly.turnOn();
+            shelly.turnOff();
         }
     } else {
         data->switch_ai_decision = BELOW;
@@ -366,6 +412,8 @@ void refreshSensors()
         notifyClientsWithSensorsDataAt = 0;
 
         webSocketServer.notifyClientsAboutNextWakeUp(wakeUpAt);
+
+        sendToInflux(data);
     }
 
     if (! sensorsHistory.isEmpty()
@@ -393,6 +441,8 @@ void setup() {
     setupHttpServer();
 
     setupMDNS();
+
+    setupInflux();
 
     shelly.setIP(config.shelly_ip);
 
